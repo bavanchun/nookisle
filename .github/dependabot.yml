@@ -1,0 +1,9 @@
+# Dependabot reads this file from the default branch (dist), so
+# scripts/assemble-dist.sh ships a copy there; updates target main.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
