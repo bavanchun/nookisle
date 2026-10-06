@@ -21,6 +21,7 @@ QtObject {
         Quickshell.execDetached(["systemctl", "--user", "stop", unit + ".timer"]);
         if (root.runtimeDir.charAt(0) === "/")
             Quickshell.execDetached(["rm", "-f", root.runtimeDir + "/omarchy-reminders/" + unit + ".message"]);
+        Quickshell.execDetached(["omarchy-shell", "-q", "omarchy.indicators", "refresh"]);
         return true;
     }
     function stopRecording() {

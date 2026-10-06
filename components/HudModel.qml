@@ -81,8 +81,7 @@ QtObject {
     // the volume source is (re)loaded, so a sink that was already known
     // before the Loader was torn down (a `hud` toggle, a `barHidden` flip)
     // starts from a fresh baseline instead of comparing against a reading
-    // that predates the reload and may no longer reflect reality (code
-    // review M4).
+    // that predates the reload and may no longer reflect reality.
     function resetBaselines() { root.baselines = ({}) }
 
     function noteVolume(sinkId, volume, muted) {

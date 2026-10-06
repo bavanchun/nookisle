@@ -58,8 +58,8 @@ on the session bus runs as you and could read the same file itself; the
 island only draws it as an image and sends nothing anywhere. With `tint` on, the island reads
 the colours of that same local file in memory; no colour, file or URL leaves
 the machine for it. Exact policies and adversarial
-checks live in [the loader on main](https://github.com/bavanchun/nookisle/blob/main/helper/artwork-loader.cpp) and
-[its tests](https://github.com/bavanchun/nookisle/blob/main/tests/helper/artwork-loader-test.cpp).
+checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.3/helper/artwork-loader.cpp) and
+[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.3/tests/helper/artwork-loader-test.cpp).
 
 ## Level readout
 
@@ -205,13 +205,13 @@ turns it off again.
   send each one. A track that reports no length, title or artist is never
   looked up. Closing the island, switching to the Shelf or turning the setting
   off sends nothing further.
-- **Bounds.** Each request times out after 8 s. An answer that declares more
-  than 256 KiB is refused before its body is read; otherwise its UTF-8 size
-  is checked when Qt first reports body data and again on the whole answer.
-  Qt's `XMLHttpRequest` reports body progress only once, so an oversized
-  answer without a declared length is buffered by Qt until it completes or
-  the 8 s timeout aborts it, and is then refused rather than parsed. Parsing
-  is capped again at 262,144 characters, 2000 lines and 512 characters a line.
+- **Bounds.** The request runs in a separate short-lived process
+  (`nookisle-artwork-fetch --lyrics`) that refuses any answer over 256 KiB while
+  reading it and never decompresses (`Accept-Encoding: identity`), with an 8 s
+  timeout. An answer that declares more than 256 KiB, or delivers more while
+  streaming, is refused before bytes beyond the cap can accumulate; Qt never
+  buffers an unverified remote body in the shell process. Parsing is capped again
+  at 262,144 characters, 2000 lines and 512 characters a line.
 - **What is kept.** Answers live in memory only, in a cache of the last 16
   tracks (including "not found", so a missing track is not asked for again
   until Try again). Nothing is written to disk, logged, or exposed through
@@ -272,18 +272,20 @@ with `idleEventTitles` on as well. This adds no data flow: the glance reads
 the items the calendar source already holds.
 
 Remote requests use HTTPS, except `http://localhost` for a local test source.
-The helper rejects private, loopback (localhost included), link-local, and
-IPv6 ULA destinations unless `allowLocalNetwork:true` is set on that source; it checks DNS answers,
-connects to the checked numeric address with the original TLS hostname and
-`Host` header, over HTTP/1.1 only (HTTP/2 would name the numeric address as the
-request's authority, and a server that picks its site by name would answer the
-wrong one), and refuses redirects to another host. Requests have an 8-second deadline and a
-4 MiB response cap. A remote server learns the machine's IP address and the
-requested calendar URL; CalDAV additionally receives its Basic authorization
-header, at every refresh while the source is active, including while the
-island is hidden. The helper does not fetch while the calendar source is
-inactive (calendar off, island mode off, or locked), and closes its pooled
-connections whenever the sources are reconfigured.
+The helper rejects private, loopback (localhost included), link-local, IPv6 ULA,
+CGNAT (100.64.0.0/10, e.g. Tailscale), benchmark (198.18.0.0/15), multicast/reserved,
+6to4, Teredo, NAT64, and IPv4-mapped private destinations unless `allowLocalNetwork:true`
+is set on that source; it checks DNS answers, connects to the checked numeric
+address with the original TLS hostname and `Host` header, over HTTP/1.1 only
+(HTTP/2 would name the numeric address as the request's authority, and a server
+that picks its site by name would answer the wrong one), keeps no cookies, and refuses
+redirects to another scheme, host, or port. Requests have an 8-second deadline,
+a 4 MiB response cap (and a matching read buffer), and send credentials only to
+the matching origin. A remote server learns the machine's IP address and the requested
+calendar URL; CalDAV additionally receives its Basic authorization header, at every
+refresh while the source is active, including while the island is hidden. The helper
+does not fetch while the calendar source is inactive (calendar off, island mode off,
+or locked), and closes its pooled connections whenever the sources are reconfigured.
 
 ## File shelf
 
@@ -375,7 +377,7 @@ The status endpoint reports counts, booleans, setting values and diagnostic
 codes, not song titles, page URLs or a tab history. The media-key verbs return only `ok`,
 `busy` or `unavailable`. They do give any same-user process a way to play,
 pause or skip an extension-controlled browser document, which no other session
-mechanism can reach; see [architecture documentation on main](https://github.com/bavanchun/nookisle/blob/main/docs/architecture.md#selection-and-view-subscription)
+mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#selection-and-view-subscription)
 for why that is accepted. Local debug/test artifacts should be
 reviewed before sharing; system process inventories and screenshots can still
 include personal information outside the plugin's own diagnostics.

@@ -65,12 +65,11 @@ Item {
     readonly property var monitor: targetScreen ? Hyprland.monitorFor(targetScreen) : null
     // In island mode, fullscreen must be read from the island's own monitor,
     // not the legacy target monitor: the two diverge whenever focus moved
-    // between the legacy `targetScreen` binding and `islandTargetScreen`
-    // (code review M1).
+    // between the legacy `targetScreen` binding and `islandTargetScreen`.
     readonly property var islandMonitor: islandTargetScreen ? Hyprland.monitorFor(islandTargetScreen) : null
     readonly property var activeMonitor: root.islandMode ? root.islandMonitor : root.monitor
     // Island mode picks its own screen, independent of the legacy chosenScreenName
-    // binding above: it moves only while collapsed (plan Decisions, "Multi-monitor"),
+    // binding above: it moves only while collapsed (multi-monitor motion contract),
     // never mid-expansion the way the legacy targetScreen binding does.
     property string islandScreenName: ""
     property bool pendingScreenMove: false
@@ -155,10 +154,10 @@ Item {
     }
     readonly property bool surfaceVisible: opened && panelAllowed && !!targetScreen && (!fullscreen || explicitOpen)
     // The Overlay window is never shown over fullscreen unless the island was
-    // opened explicitly; the HUD cannot override this (plan Decisions, "Fullscreen").
+    // opened explicitly; the HUD cannot override this.
     // `explicitOpen` also overrides `autoShow`, so a keyboard summon with
     // `autoShow:false` still shows the island instead of reporting "open"
-    // while nothing is visible (code review M3).
+    // while nothing is visible.
     readonly property bool islandVisible: root.islandMode && root.panelAllowed && !!root.coordinator
         && (root.coordinator.autoShow !== false || root.explicitOpen) && !!root.windowScreen && (!root.fullscreen || root.explicitOpen)
     readonly property bool activeVisible: root.islandMode ? root.islandVisible : root.surfaceVisible
@@ -250,8 +249,7 @@ Item {
     }
     // Exposes which screen the island lives on so each screen's BarWidget can
     // suppress its own centre-hover peek only when the island is actually on
-    // that screen, instead of every bar suppressing on any island's hover
-    // (code review L7).
+    // that screen, instead of every bar suppressing on any island's hover.
     Binding {
         target: root.coordinator
         property: "islandScreenName"
@@ -284,7 +282,7 @@ Item {
         // A fresh load must start from a fresh baseline: a stale per-sink
         // baseline from before a `hud` toggle or a `barHidden` flip could
         // otherwise compare a fresh first reading against a reading that no
-        // longer reflects reality (code review M4).
+        // longer reflects reality.
         onLoaded: {
             hudModel.resetBaselines();
             volumeLoader.item.emit();
@@ -656,7 +654,7 @@ Item {
             // legacy explicit/hover-open panel left `opened`, `expanded` and
             // `explicitOpen` set, which would suppress the HUD, keep the pill
             // interactive over fullscreen and make `isPluginOpen` report open
-            // while the island is actually collapsed (code review M2).
+            // while the island is actually collapsed.
             opened = root.surface.expanded;
             expanded = false;
             explicitOpen = false;
@@ -699,9 +697,8 @@ Item {
             if (root.islandMode) root.opened = root.surface.expanded;
             if (!root.surface.expanded && root.pendingScreenMove) root.applyIslandScreen();
             // Call directly rather than relying on `opened` mirroring into
-            // `surfaceVisible`: M2's fix can leave `opened` already true on
-            // entry, which would otherwise make `syncSubscription()` never
-            // run on a hover expand (code review L1).
+            // `surfaceVisible`: `opened` can already be true on entry, which
+            // would otherwise make `syncSubscription()` never run on a hover expand.
             root.syncSubscription();
         }
         function onCollapseRequested() { root.explicitOpen = false; }
@@ -736,8 +733,12 @@ Item {
     // cache outlives a view change. It asks LRCLIB only in island mode with
     // the opt-in lyrics setting on, and only while the island shows the
     // Lyrics view. The position is the expanded view's own subscription.
+    LyricsFetch {
+        id: lyricsFetch
+    }
     LyricsSource {
         id: lyricsSource
+        fetcher: lyricsFetch
         lyricsEnabled: root.islandMode && !!root.coordinator && root.coordinator.lyrics === true
         wanted: root.islandVisible && root.surface.expanded && (root.surface.view === "home" || root.surface.view === "lyrics")
             || root.extraLyricsWanted

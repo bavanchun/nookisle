@@ -85,10 +85,25 @@ Item {
     }
     Process {
         running: true
-        command: ["sh", "-c", 'for program; do command -v "$program" >/dev/null 2>&1 && { printf %s "$program"; exit 0; }; done; exit 1',
-            "sh"].concat(Battery.powerPrograms())
+        command: ["which"].concat(Battery.powerPrograms())
         stdout: StdioCollector {
-            onStreamFinished: root.powerCommand = Battery.powerCommandFor(text.trim())
+            onStreamFinished: {
+                var lines = text.trim().split("\n");
+                var programs = Battery.powerPrograms();
+                var found = "";
+                for (var i = 0; i < programs.length; ++i) {
+                    var candidate = programs[i];
+                    for (var j = 0; j < lines.length; ++j) {
+                        var line = lines[j].trim();
+                        if (line.endsWith("/" + candidate) || line === candidate) {
+                            found = candidate;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                root.powerCommand = Battery.powerCommandFor(found);
+            }
         }
     }
 
