@@ -86,6 +86,7 @@ The release workflow consists of three strictly isolated jobs:
 3. **`publish` (Environment `release`):**
    - Requires manual authorization by the repository owner (`release` environment gate).
    - Loads the dedicated deploy key (`NOOKISLE_DIST_DEPLOY_KEY`) with write permissions restricted to the `dist` branch.
+   - *Ruleset limitation note:* On GitHub personal repositories, ruleset bypass lists cannot be restricted exclusively to a deploy key (only organization roles, teams, or apps are supported). Therefore, the `protect-dist` ruleset enforces deletion and non-fast-forward protection, while branch write access is managed via the environment-scoped deploy key and repository access controls.
    - **Idempotent check:** Verifies if the existing `dist` branch already contains a commit for this tag. If so, skips commit creation.
    - Fast-forwards/commits the assembled `dist` tree to branch `dist`.
    - Creates a notes-only GitHub release containing the `SHA256SUMS`, the maximum Qt version, and provenance verification instructions. No tarballs or binaries are attached to the release.
