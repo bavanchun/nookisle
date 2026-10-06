@@ -150,7 +150,7 @@ Release builds and distribution packages are generated automatically by GitHub A
 - **Signer workflow:** [release.yml](https://github.com/bavanchun/nookisle/actions/workflows/release.yml)
 - **Attestation verification:** Verify any downloaded release artifact or binary with the GitHub CLI:
   ```sh
-  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.2 --deny-self-hosted-runners
+  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
   ```
 - **SHA256SUMS header:** Shipped packages contain an attested `SHA256SUMS` (GitHub build provenance) file with the header `# nookisle <tag> <source sha>` that binds the release tag to the exact commit SHA on `main`.
 - **Reproducible rebuild:** The release can be rebuilt in the pinned container using [scripts/rebuild-dist.sh](https://github.com/bavanchun/nookisle/blob/v1.0.3/scripts/rebuild-dist.sh).
