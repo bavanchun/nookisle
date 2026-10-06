@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build, test, and assemble dist
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: archlinux@sha256:b21322c663be387c0ed9cbc7bbbfe18e41633ad4e7b7c77cfad45f128be20040
+    steps:
+      - name: Bootstrap git for checkout
+        run: |
+          pacman -Sy --noconfirm git
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set Arch Linux Archive mirror and install dependencies
+        run: |
+          echo "Server = https://archive.archlinux.org/repos/2026/10/01/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
+          pacman -Syuu --noconfirm base-devel cmake ninja git qt6-base qt6-declarative qt6-multimedia nlohmann-json openssl libpipewire systemd-libs pkgconf python python-gobject nodejs iproute2 dbus
+          ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+          dbus-uuidgen --ensure
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNOOKISLE_HOST_TESTS=OFF \
+            -DNOOKISLE_REQUIRE_ALL_FEATURES=ON \
+            -DNOOKISLE_BUILD_REVISION="${GITHUB_SHA}"
+
+      - name: Build
+        run: |
+          cmake --build build
+
+      - name: Run isolated tests
+        run: |
+          ctest --test-dir build --output-on-failure -LE needs-netns
+
+      - name: Install and assemble dist tree
+        run: |
+          cmake --install build --strip --prefix stage
+          scripts/assemble-dist.sh stage out
+
+      - name: Record build metadata and verify symbol version boundaries
+        run: |
+          mkdir -p out-meta
+          pacman -Q > out-meta/packages.txt
+          max_qt=$(readelf -V out/libexec/* | grep -o 'Qt_6\.[0-9]*' | sort -V | tail -n 1 || true)
+          echo "${max_qt}" > out-meta/max-qt-version.txt
+          echo "Highest Qt symbol version: ${max_qt}"
+          if readelf -V out/libexec/* | grep -q 'Qt_6_PRIVATE_API'; then
+            echo "ERROR: Binaries link Qt_6_PRIVATE_API symbol!" >&2
+            exit 1
+          fi
+
+      - name: Upload assembled dist artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: nookisle-dist
+          path: out/
+
+      - name: Upload metadata artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: nookisle-meta
+          path: out-meta/

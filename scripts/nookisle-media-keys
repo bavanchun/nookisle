@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# Media-key actions with exactly one readout: the island's when it will draw
+# one, otherwise Omarchy's own command, which acts and shows its OSD.
+set -euo pipefail
+
+usage() {
+  echo "Usage: nookisle-media-keys volume <raise|lower|+N|-N|mute-toggle> | brightness <+N%|N%-|N%> | keyboard <up|down|cycle> | mic-toggle" >&2
+  exit 1
+}
+
+# Ask the island whether it shows this key's readout. It says no with hud or
+# island off, while hidden or suppressed, or for a backlight it does not
+# watch; a disabled plugin or a stopped shell fails at once, which is also no.
+# Either way Omarchy's own command acts and shows its OSD instead.
+#
+# Record who owns this key before changing the device. The island reads that
+# record when the source sample arrives, even if the query answered too late.
+readout_deadline=0.09
+# EPOCHREALTIME uses the locale's decimal point (a comma in de_DE or vi_VN), so
+# timestamps keep its digits only rather than dropping a literal ".".
+fallback_active() {
+  local kind=$1 target=$2 now_us now_ms record_kind token owner expires
+  [[ -r $target ]] || return 1
+  read -r record_kind token owner expires <"$target" || return 1
+  now_us=${EPOCHREALTIME//[!0-9]/}
+  now_ms=${now_us:0:13}
+  [[ $record_kind == "$kind" && $owner == fallback && $expires =~ ^[0-9]{13}$
+     && $expires > $now_ms ]]
+}
+write_readout_owner() {
+  local kind=$1 owner=$2 now_us now_ms token dir target temporary
+  now_us=${EPOCHREALTIME//[!0-9]/}
+  now_ms=${now_us:0:13}
+  token="$$-$now_us"
+  dir="$XDG_RUNTIME_DIR/nookisle"
+  target="$dir/key-readout.$kind"
+  temporary="$target.$token.tmp"
+  (umask 077; mkdir -p -m 700 "$dir" &&
+    printf '%s %s %s %s\n' "$kind" "$token" "$owner" "$((now_ms + 2000))" >"$temporary" &&
+    mv -f "$temporary" "$target")
+}
+island_readout() {
+  local kind=$1 device=$2 answer status=0 owner=fallback dir target lock_fd
+  # Without a private session runtime there is no safe ownership channel.
+  # Omarchy acts and displays the readout without querying the island.
+  [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR ]] || return 1
+  dir="$XDG_RUNTIME_DIR/nookisle"
+  target="$dir/key-readout.$kind"
+  (umask 077; mkdir -p -m 700 "$dir") || return 1
+  exec {lock_fd}>"$target.lock" || return 1
+  flock -x "$lock_fd" || return 1
+  if fallback_active "$kind" "$target"; then
+    write_readout_owner "$kind" fallback
+    exec {lock_fd}>&-
+    return 1
+  fi
+  flock -u "$lock_fd"
+  # A query that ignores the deadline's TERM is killed 40 ms later (137).
+  answer=$(OMARCHY_SHELL_IPC_TIMEOUT=2s timeout --kill-after=0.04 "$readout_deadline" \
+    omarchy-shell nookisle hudReadout "$kind" "$device" 2>/dev/null) || status=$?
+  flock -x "$lock_fd" || return 1
+  # Another key may have timed out while this query was in flight. A fresh
+  # fallback decision is one-way until the burst has been idle for 2 seconds.
+  if ! fallback_active "$kind" "$target" && [[ $status == 0 && $answer == ok ]]; then
+    owner=island
+  fi
+  write_readout_owner "$kind" "$owner" || return 1
+  exec {lock_fd}>&-
+  [[ $owner == island ]]
+}
+
+if [[ ${1:-} == mic-toggle && $# == 1 ]]; then
+  island_readout mic default || exec omarchy-audio-input-mute
+  wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle >/dev/null
+  if [[ $(wpctl get-volume @DEFAULT_AUDIO_SOURCE@) == *MUTED* ]]; then
+    omarchy-brightness-keyboard-mute on
+  else
+    omarchy-brightness-keyboard-mute off
+  fi
+  exit 0
+fi
+
+if [[ ${1:-} == keyboard && $# == 2 ]]; then
+  case $2 in
+    up|down|cycle) ;;
+    *) usage ;;
+  esac
+  island_readout keyboard default || exec omarchy-brightness-keyboard "$2"
+  omarchy-brightness-keyboard --no-osd "$2"
+  # Best effort: -q never fails the keypress, and a hung shell holds this
+  # helper for at most a second.
+  OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell -q nookisle keyboardBacklightChanged >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ ${1:-} == brightness && $# == 2 ]]; then
+  [[ $2 =~ ^(\+?[0-9]+%|[0-9]+%-)$ ]] || usage
+  # Omarchy's own routing: an Apple or other external display is set over its
+  # own protocol, never through the sysfs backlight the island watches.
+  monitor=$(omarchy-hyprland-monitor-focused 2>/dev/null || true)
+  if omarchy-hyprland-monitor-focused-apple "$monitor" 2>/dev/null \
+      || [[ -n $monitor && ! $monitor =~ ^(eDP|LVDS|DSI)- ]]; then
+    exec omarchy-brightness-display "$2"
+  fi
+  device=$(omarchy-hw-display 2>/dev/null || true)
+  if [[ -n $device ]] && island_readout brightness "$device"; then
+    exec omarchy-brightness-display --no-osd "$2"
+  fi
+  exec omarchy-brightness-display "$2"
+fi
+
+[[ ${1:-} == volume && $# == 2 && $2 =~ ^(raise|lower|mute-toggle|[+-][0-9]+)$ ]] || usage
+island_readout volume default || exec omarchy-audio-output-volume "$2"
+action=$2
+case $action in
+  raise) action=+5 ;;
+  lower) action=-5 ;;
+esac
+
+# Resolve a DSP sink to the physical sink, as Omarchy's volume command does.
+sink=$(omarchy-audio-output-sink)
+[[ -n $sink ]] || { echo "Could not resolve an audio sink to control." >&2; exit 1; }
+
+volume_percent() {
+  pactl get-sink-volume "$sink" | awk 'NR == 1 {
+    for (i = 1; i <= NF; i++)
+      if ($i ~ /%$/) {sub("%", "", $i); print $i; exit}
+  }'
+}
+
+if [[ $action == mute-toggle ]]; then
+  runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+  debounce_file="$runtime_dir/omarchy-audio-output-volume-mute-toggle.last"
+  now=$(date +%s%3N)
+  last=0
+  [[ -r $debounce_file ]] && read -r last <"$debounce_file" || true
+  # Digits only: bash arithmetic would evaluate anything else as code.
+  [[ $last =~ ^[0-9]+$ ]] || last=0
+  if ((now - last < 250)); then
+    exit 0
+  fi
+  printf '%s\n' "$now" >"$debounce_file"
+  pactl set-sink-mute "$sink" toggle
+elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
+  direction=${BASH_REMATCH[1]}
+  step=${BASH_REMATCH[2]}
+  current=$(volume_percent)
+  [[ $current =~ ^[0-9]+$ ]] || { echo "Could not read volume for $sink." >&2; exit 1; }
+  if [[ $direction == + ]]; then
+    next=$((current + 10#$step))
+    ((next <= 100)) || next=100
+  else
+    next=$((current - 10#$step))
+    ((next >= 0)) || next=0
+  fi
+  pactl set-sink-mute "$sink" 0
+  pactl set-sink-volume "$sink" "${next}%"
+else
+  usage
+fi

@@ -1,0 +1,206 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build, test, and assemble release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: archlinux@sha256:b21322c663be387c0ed9cbc7bbbfe18e41633ad4e7b7c77cfad45f128be20040
+    steps:
+      - name: Bootstrap git for checkout
+        run: |
+          pacman -Sy --noconfirm git
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Guard ancestor of main
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "ERROR: Tag commit ${GITHUB_SHA} is not an ancestor of origin/main!" >&2
+            exit 1
+          fi
+          echo "Guard passed: ${GITHUB_SHA} is an ancestor of origin/main"
+
+      - name: Set Arch Linux Archive mirror and install dependencies
+        run: |
+          echo "Server = https://archive.archlinux.org/repos/2026/10/01/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
+          pacman -Syuu --noconfirm base-devel cmake ninja git qt6-base qt6-declarative qt6-multimedia nlohmann-json openssl libpipewire systemd-libs pkgconf python python-gobject nodejs iproute2 dbus
+          ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+          dbus-uuidgen --ensure
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNOOKISLE_HOST_TESTS=OFF \
+            -DNOOKISLE_REQUIRE_ALL_FEATURES=ON \
+            -DNOOKISLE_BUILD_REVISION="${GITHUB_SHA}"
+
+      - name: Build
+        run: |
+          cmake --build build
+
+      - name: Run isolated tests
+        run: |
+          ctest --test-dir build --output-on-failure -LE needs-netns
+
+      - name: Install and assemble dist tree
+        run: |
+          cmake --install build --strip --prefix stage
+          NOOKISLE_TAG="${GITHUB_REF_NAME}" scripts/assemble-dist.sh stage out
+
+      - name: Record build metadata and verify symbol version boundaries
+        run: |
+          mkdir -p out-meta
+          pacman -Q > out-meta/packages.txt
+          max_qt=$(readelf -V out/libexec/* | grep -o 'Qt_6\.[0-9]*' | sort -V | tail -n 1 || true)
+          echo "${max_qt}" > out-meta/max-qt-version.txt
+          echo "Highest Qt symbol version: ${max_qt}"
+          if readelf -V out/libexec/* | grep -q 'Qt_6_PRIVATE_API'; then
+            echo "ERROR: Binaries link Qt_6_PRIVATE_API symbol!" >&2
+            exit 1
+          fi
+
+      - name: Upload assembled dist artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: nookisle-dist
+          path: out/
+
+      - name: Upload metadata artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: nookisle-meta
+          path: out-meta/
+
+  attest:
+    name: Attest build provenance
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: nookisle-dist
+          path: out/
+
+      - name: Attest binaries and checksums
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
+        with:
+          subject-path: |
+            out/libexec/*
+            out/SHA256SUMS
+
+  publish:
+    name: Publish dist branch and GitHub release
+    needs: [build, attest]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: nookisle-dist
+          path: out/
+
+      - name: Download metadata artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: nookisle-meta
+          path: out-meta/
+
+      - name: Deploy to dist branch
+        env:
+          DIST_DEPLOY_KEY: ${{ secrets.DIST_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${DIST_DEPLOY_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts
+
+          git clone git@github.com:bavanchun/nookisle.git dist-repo
+          cd dist-repo
+          git fetch origin dist:refs/remotes/origin/dist || true
+          if git checkout dist 2>/dev/null; then
+            echo "Existing dist branch checked out"
+          else
+            git checkout --orphan dist
+            git rm -rf . || true
+          fi
+
+          if [ -f SHA256SUMS ] && grep -q "^# nookisle ${GITHUB_REF_NAME} " SHA256SUMS; then
+            echo "dist branch already contains release commit for ${GITHUB_REF_NAME}; skipping commit and push"
+          else
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+            cp -a ../out/* .
+            git add -A
+
+            non_executable=$(git ls-files -s libexec | grep -v '^100755' || true)
+            if [ -n "${non_executable}" ]; then
+              echo "ERROR: libexec entries not recorded as 100755 in git index:" >&2
+              echo "${non_executable}" >&2
+              exit 1
+            fi
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "release: nookisle ${GITHUB_REF_NAME} from ${GITHUB_SHA}"
+            git push origin dist
+            echo "Successfully pushed release commit to dist branch"
+          fi
+
+      - name: Create notes-only GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          max_qt=$(cat out-meta/max-qt-version.txt || echo "Qt_6.11")
+          sha_sums=$(cat out/SHA256SUMS)
+          verify_cmd="gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/${GITHUB_REF_NAME} --deny-self-hosted-runners"
+
+          cat <<EOF > release-notes.md
+          ## Nookisle ${GITHUB_REF_NAME}
+
+          Release built from source commit \`${GITHUB_SHA}\`.
+          Maximum Qt symbol version: \`${max_qt}\` (requires Arch stable Qt >= 6.11).
+
+          ### Verification
+          Verify artifacts with the GitHub CLI:
+          \`\`\`sh
+          ${verify_cmd}
+          \`\`\`
+
+          ### SHA256SUMS
+          \`\`\`
+          ${sha_sums}
+          \`\`\`
+          EOF
+
+          if gh release view "${GITHUB_REF_NAME}" --repo bavanchun/nookisle >/dev/null 2>&1; then
+            echo "GitHub release ${GITHUB_REF_NAME} already exists"
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo bavanchun/nookisle \
+              --title "Nookisle ${GITHUB_REF_NAME}" \
+              --notes-file release-notes.md
+          fi

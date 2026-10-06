@@ -1,0 +1,11 @@
+/build/
+/build-*/
+/dist/
+/out/
+/stage/
+*.qmlc
+*.jsc
+__pycache__/
+*.pyc
+/.claude/
+/plans/
