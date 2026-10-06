@@ -31,6 +31,11 @@ if [ -f "${SOURCE_ROOT}/preview.png" ]; then
     cp "${SOURCE_ROOT}/preview.png" "${OUT_DIR}/"
 fi
 
+# Dependabot only reads its config from the default branch (dist)
+rm -rf "${OUT_DIR}/.github"
+mkdir -p "${OUT_DIR}/.github"
+cp "${SOURCE_ROOT}/.github/dependabot.yml" "${OUT_DIR}/.github/"
+
 # Exclude unneeded bridge documentation from dist tree
 if [ -f "${OUT_DIR}/bridge/README.md" ]; then
     rm -f "${OUT_DIR}/bridge/README.md"

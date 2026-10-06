@@ -37,7 +37,7 @@ The environment pins are stored in `release.env`:
 ### Bumping Policy
 1. The `ALA_DATE` must **never** be bumped ahead of the current Arch Linux stable repository.
 2. Bumps should be tested locally using `scripts/rebuild-dist.sh` to ensure package compatibility and that no unexpected Qt symbol version jumps occur.
-3. Dependabot monitors GitHub Actions SHA pins in `.github/dependabot.yml`.
+3. Dependabot monitors GitHub Actions SHA pins in `.github/dependabot.yml`. Dependabot reads its config only from the default branch, so `scripts/assemble-dist.sh` ships a copy to `dist`, and the copy targets `main`.
 
 ---
 

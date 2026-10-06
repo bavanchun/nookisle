@@ -81,6 +81,7 @@ jobs:
         with:
           name: nookisle-dist
           path: out/
+          include-hidden-files: true
 
       - name: Upload metadata artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
@@ -102,6 +103,7 @@ jobs:
         with:
           name: nookisle-dist
           path: out/
+          include-hidden-files: true
 
       - name: Attest binaries and checksums
         uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
@@ -123,6 +125,7 @@ jobs:
         with:
           name: nookisle-dist
           path: out/
+          include-hidden-files: true
 
       - name: Download metadata artifact
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
@@ -154,7 +157,7 @@ jobs:
             echo "dist branch already contains release commit for ${GITHUB_REF_NAME}; skipping commit and push"
           else
             find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-            cp -a ../out/* .
+            cp -a ../out/. .
             chmod 0755 libexec/*
             git add -A
             git update-index --chmod=+x libexec/*
