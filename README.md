@@ -104,7 +104,7 @@ Nookisle is a local controller. No audio, credentials, browsing history, or tele
 - **State read:** MPRIS media properties, Hyprland IPC window and workspace events, UPower battery status, PipeWire audio spectrum, `/proc/<pid>/fd` links of the user's own processes (to show camera activity dots while excluding system daemons), and Omarchy's recording marker in `/tmp`.
 - **System services:** `systemctl --user stop` is used only for the user's own reminder timers.
 - **Privacy gates:** The camera mirror activates only upon explicit user opening. CalDAV accounts connect only when configured. Online album artwork and synced lyrics (from LRCLIB) are strictly opt-in and disabled by default.
-- **Boundaries:** No sudo commands, no system-level services, and no remote builds.
+- **Boundaries:** No elevated privileges, no system-level services, and no remote builds.
 
 ## Updating
 
@@ -129,7 +129,7 @@ Release builds and distribution packages are generated automatically by GitHub A
 - **Signer workflow:** [release.yml](https://github.com/bavanchun/nookisle/actions/workflows/release.yml)
 - **Attestation verification:** Verify any downloaded release artifact or binary with the GitHub CLI:
   ```sh
-  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.0 --deny-self-hosted-runners
+  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.1 --deny-self-hosted-runners
   ```
 - **SHA256SUMS header:** Shipped packages contain a signed `SHA256SUMS` file with the header `# nookisle <tag> <source sha>` that binds the release tag to the exact commit SHA on `main`.
 - **Reproducible rebuild:** The release can be rebuilt in the pinned container using [scripts/rebuild-dist.sh on main](https://github.com/bavanchun/nookisle/blob/main/scripts/rebuild-dist.sh).
