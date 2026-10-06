@@ -6,6 +6,7 @@ the UI language, GPU effects only behind the gpuEffects gate, the absence of
 a recurring UI timer, and the presence of production
 properties that only a fixture currently declares.
 """
+import json
 import os
 import pathlib
 import re
@@ -1303,6 +1304,41 @@ def check_settings_atomic_0600_ordering():
         failures.append("Service.qml: writeFileSettings must guard file writes with !settingsDirReady")
 
 
+VERSION_REF = re.compile(r"\bv([0-9]+\.[0-9]+\.[0-9]+)\b")
+
+
+def check_version_references():
+    """Every vMAJOR.MINOR.PATCH in README.md and docs/*.md must match manifest.json version;
+    historical release notes in docs/releases/ are exempt."""
+    manifest_path = ROOT / "manifest.json"
+    if not manifest_path.exists():
+        failures.append("manifest.json: manifest missing")
+        return
+    manifest_version = json.loads(manifest_path.read_text()).get("version", "")
+    if not manifest_version:
+        failures.append("manifest.json: version field missing or empty")
+        return
+
+    targets = [ROOT / "README.md"]
+    releases_dir = ROOT / "docs" / "releases"
+    for path in sorted((ROOT / "docs").rglob("*.md")):
+        if releases_dir in path.parents or path.parent == releases_dir:
+            continue
+        targets.append(path)
+
+    for path in targets:
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT)
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            for match in VERSION_REF.finditer(line):
+                ver = match.group(1)
+                if ver != manifest_version:
+                    failures.append(
+                        f"{rel}:{number}: stale version reference v{ver}, expected v{manifest_version}"
+                    )
+
+
 def main():
     check_no_vietnamese()
     check_no_gpu_only_paths()
@@ -1356,6 +1392,7 @@ def main():
     check_single_manifest()
     check_untrusted_url_contract()
     check_settings_atomic_0600_ordering()
+    check_version_references()
     if failures:
         for failure in failures:
             print(f"FAIL {failure}", file=sys.stderr)

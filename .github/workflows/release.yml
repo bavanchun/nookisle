@@ -27,6 +27,33 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Guard version consistency and release notes
+        run: |
+          manifest_version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' manifest.json | head -n 1)
+          if [ -z "${manifest_version}" ]; then
+            echo "ERROR: Failed to parse version from manifest.json. Fix manifest.json." >&2
+            exit 1
+          fi
+
+          if [ "${GITHUB_REF_NAME}" != "v${manifest_version}" ]; then
+            echo "ERROR: Tag '${GITHUB_REF_NAME}' does not match manifest.json version 'v${manifest_version}'. Fix manifest.json or tag." >&2
+            exit 1
+          fi
+
+          cmake_version=$(sed -n 's/.*project(.*VERSION[[:space:]]\+\([0-9.]\+\).*/\1/p' CMakeLists.txt | head -n 1)
+          if [ "${cmake_version}" != "${manifest_version}" ]; then
+            echo "ERROR: CMakeLists.txt project VERSION '${cmake_version}' does not match manifest.json version '${manifest_version}'. Fix CMakeLists.txt." >&2
+            exit 1
+          fi
+
+          notes_file="docs/releases/${manifest_version}.md"
+          if [ ! -s "${notes_file}" ]; then
+            echo "ERROR: Commit the release notes at ${notes_file} before tagging." >&2
+            exit 1
+          fi
+
+          echo "Guard passed: tag ${GITHUB_REF_NAME} matches manifest.json and CMakeLists.txt (${manifest_version}), and ${notes_file} exists"
+
       - name: Guard ancestor of main
         run: |
           git fetch origin main:refs/remotes/origin/main
@@ -68,6 +95,8 @@ jobs:
       - name: Record build metadata and verify symbol version boundaries
         run: |
           mkdir -p out-meta
+          manifest_version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' manifest.json | head -n 1)
+          cp "docs/releases/${manifest_version}.md" out-meta/release-notes.md
           pacman -Q > out-meta/packages.txt
           max_qt=$(readelf -V out/libexec/* | grep -o 'Qt_6\.[0-9]*' | sort -V | tail -n 1 || true)
           echo "${max_qt}" > out-meta/max-qt-version.txt
@@ -185,9 +214,11 @@ jobs:
           sha_sums=$(cat out/SHA256SUMS)
           verify_cmd="gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/${GITHUB_REF_NAME} --deny-self-hosted-runners"
 
-          cat <<EOF > release-notes.md
-          ## Nookisle ${GITHUB_REF_NAME}
+          cat out-meta/release-notes.md > release-notes.md
 
+          cat <<EOF >> release-notes.md
+
+          ### Build
           Release built from source commit \`${GITHUB_SHA}\`.
           Maximum Qt symbol version: \`${max_qt}\` (requires Arch stable Qt >= 6.11).
 
