@@ -10,10 +10,16 @@ When browser installation is authorized, load the packaged `browser/chrome/` dir
 python3 ~/.config/omarchy/plugins/io.github.bavanchun.nookisle/bridge/write-native-manifests.py \
   --extension-id EXACT_EXTENSION_ID \
   --binary ~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-native-host \
-  --output-dir /tmp/nookisle-native-staging
+  --output-dir "$XDG_RUNTIME_DIR/nookisle-native-staging"
 ```
 
-Manually register `io.github.bavanchun.nookisle.json` in the intended Chrome user's `~/.config/google-chrome/NativeMessagingHosts/` (or Chromium's `~/.config/chromium/NativeMessagingHosts/`), and `native-host.json` in `${XDG_CONFIG_HOME:-$HOME/.config}/nookisle/`, preserving mode 0600. These are separate files: Chrome verifies `allowed_origins`, while the native executable verifies the same exact caller origin. Other Chrome channels/profile roots require their documented native-host registration location. Do not use wildcards or copy an unrelated extension ID. Registration files contain no media metadata. Remove these two registered files and disable/remove the extension to roll back; no system service is installed.
+Manually register `io.github.bavanchun.nookisle.json` in the intended Chrome user's `~/.config/google-chrome/NativeMessagingHosts/` (or Chromium's `~/.config/chromium/NativeMessagingHosts/`), and `native-host.json` in `${XDG_CONFIG_HOME:-$HOME/.config}/nookisle/`, preserving mode 0600. Then remove the temporary staging directory:
+
+```sh
+rm -r "$XDG_RUNTIME_DIR/nookisle-native-staging"
+```
+
+These are separate files: Chrome verifies `allowed_origins`, while the native executable verifies the same exact caller origin. Other Chrome channels/profile roots require their documented native-host registration location. Do not use wildcards or copy an unrelated extension ID. Registration files contain no media metadata. Remove these two registered files and disable/remove the extension to roll back; no system service is installed.
 
 The helper must already be running and share the browser's session-bus environment. One authenticated Chrome extension/profile connection is admitted at a time; other profile connections fail closed and retry, never merging colliding tab IDs. Chrome owns the native process only while its native port is connected. The native host never starts another helper, reconnects to a different desktop session, or logs URLs, titles, socket secrets, or messages. Removing the final supported content port closes the native process. Worker disconnect invalidates the bridge session and all pending commands; reconnect uses a fresh session and republishes current documents without replaying commands.
 

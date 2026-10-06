@@ -13,7 +13,7 @@ settings window and the legacy panel's
 | Key | Default | Governs |
 |---|---|---|
 | `hud` | off | level readout in the island for volume and brightness changes |
-| `visualizer` | on | live spectrum bars in the closed notch and the track peek (for its CPU cost while playing, see [performance on main](https://github.com/bavanchun/nookisle/blob/main/docs/performance.md#island-workloads)) |
+| `visualizer` | on | live spectrum bars in the closed notch and the track peek (for its CPU cost while playing, see [performance](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/performance.md#island-workloads)) |
 | `peek` | off | the short track peek when the playing track changes |
 | `power` | on | "Battery and charger": reading the battery through UPower at all. It gates charger changes and low (20 %) or critical (10 %) battery warnings, as a banner or a peek (`powerStyle`), and the header gauge; off, every other Battery row is dimmed |
 | `tint` | on | tinting the bars, sliders, hairline and glow with the artwork's colour (the legacy card and its controls too) |
@@ -205,6 +205,8 @@ The Calendar section owns `showCalendar`, `calendarRefresh`, `calendarSources`,
 the display rules and `calendarSelection`. Its "Calendars shown" row offers
 All calendars and one toggle per configured source; choosing a source starts a
 subset, and an empty selection shows all. Remote URLs appear as hosts, without
-their private link paths. Its internal pending-clear key has no row. The
+their private link paths. Sources resolving to local or private network destinations
+(including CGNAT and Tailscale 100.64.0.0/10 addresses, benchmark ranges, and loopback)
+require `"allowLocalNetwork": true` on that source. Its internal pending-clear key has no row. The
 reference's “Hide title bar” changes the macOS menu-bar chin height. Omarchy
 has no equivalent inset, so there is no title-bar switch.

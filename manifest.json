@@ -7,7 +7,7 @@
   "repository": "https://github.com/bavanchun/nookisle",
   "license": "MIT",
   "author": "bavanchun",
-  "description": "A source-bound floating music controller with optional exact-document Chrome integration.",
+  "description": "Notch-style island for the Omarchy bar: media controls with synced lyrics, a file shelf, calendar, camera mirror and volume/brightness HUD.",
   "kinds": ["bar-widget", "panel", "service"],
   "keepLoaded": true,
   "entryPoints": {

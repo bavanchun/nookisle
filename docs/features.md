@@ -3,7 +3,7 @@
 The island's features beyond the notch itself: the level readout, peeks,
 battery, privacy indicators, timers, screen recording, screenshots to the
 shelf, lyrics, the shelf and the calendar. The notch shell, the header, Home,
-gestures and keys are described in the [interaction reference on main](https://github.com/bavanchun/nookisle/blob/main/docs/interaction-reference.md); defaults and
+gestures and keys are described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md); defaults and
 controls are in [settings and configuration](settings.md).
 
 ## Level readout
@@ -347,7 +347,7 @@ other video source, such as xdg-desktop-portal-hyprland's. Node types and links
 need no tracking; only the capture streams in use are tracked, for their
 application names ([qml/Privacy.js](../qml/Privacy.js)). Apps that open a
 camera without PipeWire, as browsers usually do, are found by the helper's
-camera watch (see the [protocol on main](https://github.com/bavanchun/nookisle/blob/main/docs/protocol.md#desktop-signals)), which the
+camera watch (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)), which the
 Service runs only while the indicators are on and the island is allowed on
 screen. `Panel.qml` loads the source only in island mode with the setting on.
 
@@ -360,7 +360,7 @@ and the bar's Reminder indicator shows the same ones. The Service reads them
 with `omarchy-reminder show --json` ([qml/Timers.js](../qml/Timers.js)) when it
 starts, after each change the island makes, when the helper sees a reminder
 unit come or go (so reminders set from the bar or a terminal appear at once;
-see the [protocol on main](https://github.com/bavanchun/nookisle/blob/main/docs/protocol.md#desktop-signals)), and once when the soonest
+see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)), and once when the soonest
 is due. Nothing polls.
 
 - **Closed.** The soonest timer is an activity (see the
@@ -405,7 +405,7 @@ record button beside the Timers button in the header's right-hand slots
 offers Stop instead. A tap on the closed notch opens the island as usual.
 
 The helper learns of a recording from Omarchy's own marker file (see the
-[protocol on main](https://github.com/bavanchun/nookisle/blob/main/docs/protocol.md#desktop-signals)): it appears once the recorder
+[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)): it appears once the recorder
 produces output and goes when the video is saved, with the video's path.
 Its modification time is the start. At start, a marker left behind by a crash
 counts only while `gpu-screen-recorder` runs.
@@ -424,7 +424,7 @@ the notch blooms a 4s peek with a small thumbnail, "Screenshot" and "Added to
 shelf" (`capturePeekDuration`), and the file is ready to drag into a chat or
 share. Peeks take no input, which is why it is automatic rather than a tap.
 The helper watches the screenshot folder for `screenshot-*.png` files closed
-after writing or moved in (see the [protocol on main](https://github.com/bavanchun/nookisle/blob/main/docs/protocol.md#desktop-signals)):
+after writing or moved in (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)):
 `$OMARCHY_SCREENSHOT_DIR`, else the Pictures folder, or `screenshotDir` when
 set. A folder that does not exist is refused and nothing is watched. The
 thumbnail is decoded once at 48x32; the watch runs only while the option is
@@ -736,4 +736,4 @@ answer a keyring unlock prompt; a prompt left unanswered reports
 source of that account and then announces the change, so the window refreshes
 without a second request. Clearing a password is always explicit; the editor
 clears only when no remaining source uses the same URL and user. See
-[protocol on main](https://github.com/bavanchun/nookisle/blob/main/docs/protocol.md#calendar) for the message shapes.
+[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#calendar) for the message shapes.

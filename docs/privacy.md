@@ -58,8 +58,8 @@ on the session bus runs as you and could read the same file itself; the
 island only draws it as an image and sends nothing anywhere. With `tint` on, the island reads
 the colours of that same local file in memory; no colour, file or URL leaves
 the machine for it. Exact policies and adversarial
-checks live in [the loader on main](https://github.com/bavanchun/nookisle/blob/main/helper/artwork-loader.cpp) and
-[its tests](https://github.com/bavanchun/nookisle/blob/main/tests/helper/artwork-loader-test.cpp).
+checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.3/helper/artwork-loader.cpp) and
+[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.3/tests/helper/artwork-loader-test.cpp).
 
 ## Level readout
 
@@ -272,18 +272,20 @@ with `idleEventTitles` on as well. This adds no data flow: the glance reads
 the items the calendar source already holds.
 
 Remote requests use HTTPS, except `http://localhost` for a local test source.
-The helper rejects private, loopback (localhost included), link-local, and
-IPv6 ULA destinations unless `allowLocalNetwork:true` is set on that source; it checks DNS answers,
-connects to the checked numeric address with the original TLS hostname and
-`Host` header, over HTTP/1.1 only (HTTP/2 would name the numeric address as the
-request's authority, and a server that picks its site by name would answer the
-wrong one), and refuses redirects to another host. Requests have an 8-second deadline and a
-4 MiB response cap. A remote server learns the machine's IP address and the
-requested calendar URL; CalDAV additionally receives its Basic authorization
-header, at every refresh while the source is active, including while the
-island is hidden. The helper does not fetch while the calendar source is
-inactive (calendar off, island mode off, or locked), and closes its pooled
-connections whenever the sources are reconfigured.
+The helper rejects private, loopback (localhost included), link-local, IPv6 ULA,
+CGNAT (100.64.0.0/10, e.g. Tailscale), benchmark (198.18.0.0/15), multicast/reserved,
+6to4, Teredo, NAT64, and IPv4-mapped private destinations unless `allowLocalNetwork:true`
+is set on that source; it checks DNS answers, connects to the checked numeric
+address with the original TLS hostname and `Host` header, over HTTP/1.1 only
+(HTTP/2 would name the numeric address as the request's authority, and a server
+that picks its site by name would answer the wrong one), keeps no cookies, and refuses
+redirects to another scheme, host, or port. Requests have an 8-second deadline,
+a 4 MiB response cap (and a matching read buffer), and send credentials only to
+the matching origin. A remote server learns the machine's IP address and the requested
+calendar URL; CalDAV additionally receives its Basic authorization header, at every
+refresh while the source is active, including while the island is hidden. The helper
+does not fetch while the calendar source is inactive (calendar off, island mode off,
+or locked), and closes its pooled connections whenever the sources are reconfigured.
 
 ## File shelf
 
@@ -375,7 +377,7 @@ The status endpoint reports counts, booleans, setting values and diagnostic
 codes, not song titles, page URLs or a tab history. The media-key verbs return only `ok`,
 `busy` or `unavailable`. They do give any same-user process a way to play,
 pause or skip an extension-controlled browser document, which no other session
-mechanism can reach; see [architecture documentation on main](https://github.com/bavanchun/nookisle/blob/main/docs/architecture.md#selection-and-view-subscription)
+mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#selection-and-view-subscription)
 for why that is accepted. Local debug/test artifacts should be
 reviewed before sharing; system process inventories and screenshots can still
 include personal information outside the plugin's own diagnostics.

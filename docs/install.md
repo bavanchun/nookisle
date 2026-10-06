@@ -37,10 +37,12 @@ omarchy-restart-shell
 
 Restarting the shell (`omarchy-restart-shell`) is required because `keepLoaded` keeps the running plugin and helper processes loaded until the shell restarts.
 
-Updates contain pre-built binaries. Before restarting, you can verify package integrity with:
+Updates contain pre-built binaries. Before restarting, you can verify package checksums and build provenance with:
 
 ```sh
-omarchy plugin validate ~/.config/omarchy/plugins/io.github.bavanchun.nookisle
+cd ~/.config/omarchy/plugins/io.github.bavanchun.nookisle
+sha256sum -c SHA256SUMS
+gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
 ```
 
 ## Removal
@@ -49,22 +51,24 @@ To remove Nookisle:
 
 ```sh
 omarchy plugin remove io.github.bavanchun.nookisle
+omarchy-restart-shell
 ```
 
+Restarting the shell (`omarchy-restart-shell`) is required because `keepLoaded` keeps the running plugin and helper processes loaded until restart.
+
 Then undo anything you set up by hand:
-1. Remove any summon key binding line added to `~/.config/hypr/bindings.lua`.
-2. Reset `bar.centerAnchor` in `~/.config/omarchy/shell.json` if configured.
-3. If using the Chrome extension, remove the extension from Chrome and delete the native messaging host manifest:
-   - `rm -f ~/.config/google-chrome/NativeMessagingHosts/io.github.bavanchun.nookisle.json`
-   - (or `~/.config/chromium/NativeMessagingHosts/io.github.bavanchun.nookisle.json` if using Chromium)
-4. Delete saved settings, shelf data, and credentials:
+1. If configured, remove the media-key bindings block: delete the lines between `-- >>> nookisle media keys >>>` and `-- <<< nookisle media keys <<<` in `~/.config/hypr/bindings.lua`, then run `hyprctl reload`.
+2. Remove any summon key binding line added to `~/.config/hypr/bindings.lua`, then run `hyprctl reload`.
+3. Reset `bar.centerAnchor` in `~/.config/omarchy/shell.json` if configured.
+4. If using the Chrome or Chromium extension, remove the extension from the browser, delete the native messaging host manifest (`rm -f ~/.config/google-chrome/NativeMessagingHosts/io.github.bavanchun.nookisle.json` or `~/.config/chromium/NativeMessagingHosts/io.github.bavanchun.nookisle.json`), and delete `~/.config/nookisle/native-host.json`.
+5. Delete saved settings, shelf data, and credentials:
    - `rm -rf ~/.config/nookisle`
    - `rm -rf ~/.local/state/nookisle`
    - `secret-tool clear service nookisle` (to clear any saved CalDAV passwords)
 
 ## Build from source
 
-To build, test, and develop Nookisle from source, see the [Development Guide on main](https://github.com/bavanchun/nookisle/blob/main/docs/development.md).
+To build, test, and develop Nookisle from source, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
 
 ## Configure calendar sources
 
@@ -146,14 +150,56 @@ To undo, move the widget to another section or remove the `"centerAnchor"` line.
 ### One on-screen display for media keys
 
 To get exactly one readout per media key, the island's HUD or Omarchy's OSD
-but never both, opt in to the media-key bindings when installing or configure them in `bindings.lua`.
+but never both, add the following Lua configuration block to `~/.config/hypr/bindings.lua`, then run `hyprctl reload`:
+
+```lua
+-- >>> nookisle media keys >>>
+-- nookisle: created-file=false; added-newline=false
+-- Enables blur globally because Hyprland requires it for layer blur
+hl.config({ decoration = { blur = { enabled = true } } })
+hl.layer_rule({ match = { namespace = "^nookisle$" }, blur = true, ignore_alpha = 0.5, no_anim = true })
+hl.unbind("XF86AudioRaiseVolume")
+hl.unbind("XF86AudioLowerVolume")
+hl.unbind("XF86AudioMute")
+hl.unbind("XF86AudioMicMute")
+hl.unbind("XF86MonBrightnessUp")
+hl.unbind("XF86MonBrightnessDown")
+hl.unbind("SHIFT + XF86MonBrightnessUp")
+hl.unbind("SHIFT + XF86MonBrightnessDown")
+hl.unbind("XF86KbdBrightnessUp")
+hl.unbind("XF86KbdBrightnessDown")
+hl.unbind("XF86KbdLightOnOff")
+hl.unbind("ALT + XF86AudioRaiseVolume")
+hl.unbind("ALT + XF86AudioLowerVolume")
+hl.unbind("ALT + XF86MonBrightnessUp")
+hl.unbind("ALT + XF86MonBrightnessDown")
+o.bind("XF86AudioRaiseVolume", "Nookisle Volume up", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys volume raise", { locked = true, repeating = true })
+o.bind("XF86AudioLowerVolume", "Nookisle Volume down", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys volume lower", { locked = true, repeating = true })
+o.bind("XF86AudioMute", "Nookisle Mute", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys volume mute-toggle", { locked = true })
+o.bind("XF86AudioMicMute", "Nookisle Mute microphone", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys mic-toggle", { locked = true })
+o.bind("XF86MonBrightnessUp", "Nookisle Brightness up", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness +5%", { locked = true, repeating = true })
+o.bind("XF86MonBrightnessDown", "Nookisle Brightness down", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness 5%-", { locked = true, repeating = true })
+o.bind("SHIFT + XF86MonBrightnessUp", "Nookisle Brightness maximum", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness 100%", { locked = true, repeating = true })
+o.bind("SHIFT + XF86MonBrightnessDown", "Nookisle Brightness minimum", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness 1%", { locked = true, repeating = true })
+o.bind("XF86KbdBrightnessUp", "Nookisle Keyboard brightness up", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys keyboard up", { locked = true, repeating = true })
+o.bind("XF86KbdBrightnessDown", "Nookisle Keyboard brightness down", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys keyboard down", { locked = true, repeating = true })
+o.bind("XF86KbdLightOnOff", "Nookisle Keyboard backlight cycle", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys keyboard cycle", { locked = true })
+o.bind("ALT + XF86AudioRaiseVolume", "Nookisle Volume up precise", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys volume +1", { locked = true, repeating = true })
+o.bind("ALT + XF86AudioLowerVolume", "Nookisle Volume down precise", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys volume -1", { locked = true, repeating = true })
+o.bind("ALT + XF86MonBrightnessUp", "Nookisle Brightness up precise", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness +1%", { locked = true, repeating = true })
+o.bind("ALT + XF86MonBrightnessDown", "Nookisle Brightness down precise", "~/.config/omarchy/plugins/io.github.bavanchun.nookisle/libexec/nookisle-media-keys brightness 1%-", { locked = true, repeating = true })
+-- <<< nookisle media keys <<<
+```
+
+To undo: delete the lines between `-- >>> nookisle media keys >>>` and `-- <<< nookisle media keys <<<` in `~/.config/hypr/bindings.lua`, then run `hyprctl reload`.
+
 The bindings block sends the volume, mic, display brightness and keyboard brightness keys to the
 packaged `libexec/nookisle-media-keys` script. Before each key it asks the
 island, with `omarchy-shell nookisle hudReadout <kind> <device>`, whether
 the island will draw that readout. A prompt `ok` gives the readout to the island. Timeout, `unavailable`, and failure give
 it to Omarchy; the helper records that decision before acting so a later
 island source sample cannot duplicate the fallback OSD. The ownership record
-is described in the [interaction reference on main](https://github.com/bavanchun/nookisle/blob/main/docs/interaction-reference.md#media-key-readout-ownership).
+is described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md#media-key-readout-ownership).
 
 Without the bindings block, Omarchy's own OSD handles every one of these keys.
 Media playback and source-switching keys remain on their default bindings.
@@ -213,7 +259,7 @@ fetched from the web (Spotify's, and every browser source's) need
 `remoteArtwork`, which stays off by default; without it such a source shows a
 music glyph and the island keeps the theme accent.
 
-Browser exact-document control requires the [Chrome extension and native bridge on main](https://github.com/bavanchun/nookisle/blob/main/bridge/README.md); MPRIS-only Chrome
+Browser exact-document control requires the [Chrome extension and native bridge](https://github.com/bavanchun/nookisle/blob/v1.0.3/bridge/README.md); MPRIS-only Chrome
 entries remain explicitly browser-scoped.
 
 ### Optional compositor blur and layer animation
