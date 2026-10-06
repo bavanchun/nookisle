@@ -14,6 +14,8 @@ Install directly through Omarchy's plugin manager:
 omarchy plugin add https://github.com/bavanchun/nookisle --enable
 ```
 
+Nookisle is also listed in the [Omarchy Plugins directory](https://omarchyplugins.com/plugin.html?id=io.github.bavanchun.nookisle).
+
 ### Requirements
 - Omarchy 4.x with a top bar
 - x86_64 architecture
@@ -158,6 +160,10 @@ Release builds and distribution packages are generated automatically by GitHub A
 ## Development
 
 For building from source, running tests, and developing Nookisle, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the security policy and vulnerability reporting.
 
 ## License
 

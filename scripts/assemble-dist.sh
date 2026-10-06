@@ -43,6 +43,9 @@ fi
 if [ -f "${SOURCE_ROOT}/README.md" ] && [ ! -f "${OUT_DIR}/README.md" ]; then
     cp "${SOURCE_ROOT}/README.md" "${OUT_DIR}/"
 fi
+if [ -f "${SOURCE_ROOT}/SECURITY.md" ] && [ ! -f "${OUT_DIR}/SECURITY.md" ]; then
+    cp "${SOURCE_ROOT}/SECURITY.md" "${OUT_DIR}/"
+fi
 if [ -f "${SOURCE_ROOT}/preview.png" ]; then
     cp "${SOURCE_ROOT}/preview.png" "${OUT_DIR}/"
 fi
