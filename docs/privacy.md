@@ -205,13 +205,13 @@ turns it off again.
   send each one. A track that reports no length, title or artist is never
   looked up. Closing the island, switching to the Shelf or turning the setting
   off sends nothing further.
-- **Bounds.** Each request times out after 8 s. An answer that declares more
-  than 256 KiB is refused before its body is read; otherwise its UTF-8 size
-  is checked when Qt first reports body data and again on the whole answer.
-  Qt's `XMLHttpRequest` reports body progress only once, so an oversized
-  answer without a declared length is buffered by Qt until it completes or
-  the 8 s timeout aborts it, and is then refused rather than parsed. Parsing
-  is capped again at 262,144 characters, 2000 lines and 512 characters a line.
+- **Bounds.** The request runs in a separate short-lived process
+  (`nookisle-artwork-fetch --lyrics`) that refuses any answer over 256 KiB while
+  reading it and never decompresses (`Accept-Encoding: identity`), with an 8 s
+  timeout. An answer that declares more than 256 KiB, or delivers more while
+  streaming, is refused before bytes beyond the cap can accumulate; Qt never
+  buffers an unverified remote body in the shell process. Parsing is capped again
+  at 262,144 characters, 2000 lines and 512 characters a line.
 - **What is kept.** Answers live in memory only, in a cache of the last 16
   tracks (including "not found", so a missing track is not asked for again
   until Try again). Nothing is written to disk, logged, or exposed through

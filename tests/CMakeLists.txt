@@ -153,4 +153,8 @@ if(NOOKISLE_HOST_TESTS)
     # like the lifecycle suite, with real but harmless commands.
     add_test(NAME qml-shelf-actions COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-shelf-actions.sh)
     set_tests_properties(qml-shelf-actions PROPERTIES TIMEOUT 40)
+    # LyricsFetch wraps Quickshell's Process, so it runs under quickshell
+    # against a fake child script verifying lifecycle, argv, and signal isolation.
+    add_test(NAME qml-lyrics-fetch COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-lyrics-fetch.sh)
+    set_tests_properties(qml-lyrics-fetch PROPERTIES TIMEOUT 40)
 endif()

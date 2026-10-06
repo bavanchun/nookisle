@@ -341,21 +341,21 @@ so a paused seek shows at once. See the
 The site adapter reads a like control's accessible state before advertising
 `CanFavorite`; its click goes through the same document-bound command route.
 
-Synced lyrics are fetched in QML, not by the helper.
-[LyricsSource.qml](../components/LyricsSource.qml) is the only network client
-in QML (the helper owns artwork and calendar requests): one `XMLHttpRequest`
-at a time to LRCLIB's `/api/get`, gated by the opt-in `lyrics` setting and an
-open island showing Home or the Lyrics view, with an 8 s timeout,
-a 256 KiB cap and an in-memory LRU of 16. `Panel.qml` holds the one instance,
-so the cache outlives view changes, and feeds it the selected endpoint and the
-expanded view's 250 ms position; there is no second clock.
-[Lyrics.js](../qml/Lyrics.js) is the pure part (LRC parsing, line selection,
-the request URL, the cache and the reading of an answer), and
-[IslandLyrics.qml](../components/IslandLyrics.qml) draws it. Routing lyrics
-through the helper would have reused the artwork loader's bounds, but it would
-add protocol frames, C++ state and tests for plain text; the helper keeps its
-narrow MPRIS and artwork role. `tests/source-contract.py` pins that no other
-shipped file uses `XMLHttpRequest` or names the LRCLIB URL. See
-[privacy](privacy.md#lyrics).
+Synced lyrics are driven in QML, with the network transfer running in the
+short-lived [nookisle-artwork-fetch](../helper/artwork-fetch.cpp) child via
+[LyricsFetch.qml](../components/LyricsFetch.qml), not in the shell process.
+[LyricsSource.qml](../components/LyricsSource.qml) holds the state machine:
+one request at a time to LRCLIB's `/api/get`, gated by the opt-in `lyrics`
+setting and an open island showing Home or the Lyrics view, with an 8 s
+timeout, a 256 KiB streaming cap and an in-memory LRU of 16. The child streams
+and rejects any answer over 256 KiB, refuses compressed transfers, enforces
+TLS against the original hostname and public DNS, and outputs `ok <status>\n<body>`
+or `error <code>`. `Panel.qml` holds the one instance, so the cache outlives view
+changes, and feeds it the selected endpoint and the expanded view's 250 ms
+position; there is no second clock. [Lyrics.js](../qml/Lyrics.js) is the pure
+part (LRC parsing, line selection, the request URL, the cache and the reading
+of an answer), and [IslandLyrics.qml](../components/IslandLyrics.qml) draws it.
+`tests/source-contract.py` pins that no shipped file uses `XMLHttpRequest` and
+only `LyricsSource.qml` names the LRCLIB URL. See [privacy](privacy.md#lyrics).
 
 See the [README](../README.md) for build, test, and local packaging instructions.

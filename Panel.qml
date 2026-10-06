@@ -736,8 +736,12 @@ Item {
     // cache outlives a view change. It asks LRCLIB only in island mode with
     // the opt-in lyrics setting on, and only while the island shows the
     // Lyrics view. The position is the expanded view's own subscription.
+    LyricsFetch {
+        id: lyricsFetch
+    }
     LyricsSource {
         id: lyricsSource
+        fetcher: lyricsFetch
         lyricsEnabled: root.islandMode && !!root.coordinator && root.coordinator.lyrics === true
         wanted: root.islandVisible && root.surface.expanded && (root.surface.view === "home" || root.surface.view === "lyrics")
             || root.extraLyricsWanted

@@ -2,8 +2,6 @@ import QtQuick
 import QtTest
 import "../../components"
 import "../../qml/Lyrics.js" as Lyrics
-// Written by lyrics-fixture-server.py, which run-lyrics.sh starts first.
-import "../../build/lyrics-fixture/port.js" as Fixture
 
 TestCase {
     id: test
@@ -13,7 +11,45 @@ TestCase {
     width: 10
     height: 10
 
-    readonly property string base: "http://127.0.0.1:" + Fixture.port
+    readonly property string syncedLrc: [
+        "[ar:Fixture Artist]",
+        "[ti:Fixture Song]",
+        "[offset:+500]",
+        "[00:01.00]First line",
+        "[00:03.50][00:09.00]Chorus line",
+        "[00:05.25]",
+        "[00:07.000]Third line",
+        "[00:11.5]Last line"
+    ].join("\n")
+
+    readonly property var bodies: ({
+        "/api/get": {
+            id: 1,
+            trackName: "Fixture Song",
+            artistName: "Fixture Artist",
+            albumName: "Fixture Album",
+            duration: 200.0,
+            instrumental: false,
+            plainLyrics: "First line\nChorus line",
+            syncedLyrics: syncedLrc
+        },
+        "/api/instrumental": {
+            id: 2,
+            trackName: "Interlude",
+            instrumental: true,
+            plainLyrics: null,
+            syncedLyrics: null
+        },
+        "/api/plain": {
+            id: 3,
+            trackName: "Untimed",
+            instrumental: false,
+            plainLyrics: "Words without timing",
+            syncedLyrics: null
+        }
+    })
+
+    readonly property string base: "https://lrclib.test"
     function url(route) {
         return base + "/api/" + route;
     }
@@ -32,20 +68,60 @@ TestCase {
         };
     }
 
-    // The fixture's request count, read through its own route: Qt refuses
-    // file:// reads from QML XMLHttpRequest, so requests.log is for people.
-    property int observed: -1
+    property int totalRequests: 0
     function requestCount() {
-        test.observed = -1;
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === XMLHttpRequest.DONE)
-                test.observed = Number(xhr.responseText);
-        };
-        xhr.open("GET", base + "/__requests");
-        xhr.send();
-        tryVerify(function () { return test.observed >= 0; }, 3000, "the fixture reports its request count");
-        return test.observed;
+        return test.totalRequests;
+    }
+
+    Component {
+        id: fakeFetcherComponent
+        QtObject {
+            id: fake
+            signal finished(int status, string text)
+            signal failed(string code)
+
+            property var requests: []
+            property int cancelCount: 0
+            property string currentRoute: "get"
+
+            function start(url) {
+                requests.push(url);
+                test.totalRequests++;
+                var route = extractRoute(url);
+                if (route === "slow") return;
+                Qt.callLater(function () {
+                    respond(route);
+                });
+            }
+
+            function cancel() {
+                cancelCount++;
+            }
+
+            function extractRoute(url) {
+                var s = String(url || "");
+                var match = s.match(/\/api\/([a-zA-Z0-9_-]+)/);
+                return match ? match[1] : (currentRoute || "get");
+            }
+
+            function respond(route) {
+                if (route === "get") {
+                    finished(200, JSON.stringify(test.bodies["/api/get"]));
+                } else if (route === "instrumental") {
+                    finished(200, JSON.stringify(test.bodies["/api/instrumental"]));
+                } else if (route === "plain") {
+                    finished(200, JSON.stringify(test.bodies["/api/plain"]));
+                } else if (route === "missing") {
+                    finished(404, JSON.stringify({ code: 404, name: "TrackNotFound" }));
+                } else if (route === "garbage") {
+                    finished(200, "not json");
+                } else if (route === "big-declared" || route === "big-chunked" || route === "big-multibyte") {
+                    failed("too-large");
+                } else {
+                    failed("network");
+                }
+            }
+        }
     }
 
     Component {
@@ -56,7 +132,12 @@ TestCase {
         }
     }
     function makeSource(route, endpoint, extra) {
-        var properties = { endpointUrl: url(route), endpoint: endpoint === undefined ? track() : endpoint };
+        var fetcher = createTemporaryObject(fakeFetcherComponent, test, { currentRoute: route || "get" });
+        var properties = {
+            endpointUrl: url(route),
+            endpoint: endpoint === undefined ? track() : endpoint,
+            fetcher: fetcher
+        };
         for (var key in extra)
             properties[key] = extra[key];
         var source = createTemporaryObject(sourceComponent, test, properties);

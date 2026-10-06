@@ -17,9 +17,27 @@ int main(int argc, char **argv) {
     if (setrlimit(RLIMIT_CORE, &coreLimit)) return 2;
     QCoreApplication app(argc, argv);
     const auto arguments = app.arguments();
-    if (arguments.size() != 2 && !(arguments.size() == 4 && arguments[2] == "--ca-file")) return 2;
-    if (arguments.size() == 4) {
-        QFile file(arguments[3]);
+
+    bool lyricsMode = false;
+    QString urlString;
+    QString caFilePath;
+    for (int i = 1; i < arguments.size(); ++i) {
+        if (arguments[i] == "--lyrics") {
+            if (lyricsMode) return 2;
+            lyricsMode = true;
+        } else if (arguments[i] == "--ca-file") {
+            if (!caFilePath.isEmpty() || i + 1 >= arguments.size()) return 2;
+            caFilePath = arguments[++i];
+        } else if (urlString.isEmpty() && !arguments[i].startsWith("--")) {
+            urlString = arguments[i];
+        } else {
+            return 2;
+        }
+    }
+    if (urlString.isEmpty()) return 2;
+
+    if (!caFilePath.isEmpty()) {
+        QFile file(caFilePath);
         if (!file.open(QIODevice::ReadOnly)) return 2;
         const auto certificates = QSslCertificate::fromData(file.readAll());
         if (certificates.isEmpty()) return 2;
@@ -29,7 +47,7 @@ int main(int argc, char **argv) {
     }
     QFile output;
     if (!output.open(STDOUT_FILENO, QIODevice::WriteOnly)) return 2;
-    Island::ArtworkFetch fetch;
+    Island::ArtworkFetch fetch(lyricsMode ? Island::ArtworkFetch::Mode::Lyrics : Island::ArtworkFetch::Mode::Artwork);
     QObject::connect(&fetch, &Island::ArtworkFetch::fetched, &app, [&](const QByteArray &bytes, const QByteArray &mime) {
         const bool written = output.write("ok " + mime + "\n") > 0 && output.write(bytes) == bytes.size() && output.flush();
         app.exit(written ? 0 : 4);
@@ -39,6 +57,6 @@ int main(int argc, char **argv) {
         output.flush();
         app.exit(0);
     });
-    fetch.start(QUrl(arguments[1], QUrl::StrictMode));
+    fetch.start(QUrl(urlString, QUrl::StrictMode));
     return app.exec();
 }

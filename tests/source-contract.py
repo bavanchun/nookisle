@@ -699,17 +699,18 @@ LYRICS_URL = "https://lrclib.net/api/get"
 
 
 def check_network_confined():
-    """The plugin's one network request is the opt-in lyrics lookup. It lives
-    in LyricsSource alone, where the lyrics setting and the open view gate it,
-    so no other file can quietly start talking to a server."""
+    """Network transfers happen only in nookisle-artwork-fetch, which is
+    launched from the helper for artwork and from components/LyricsFetch.qml
+    for lyrics. No shipped file may use XMLHttpRequest, the LRCLIB URL may
+    appear only in LyricsSource.qml, and the plain-http:// ban stays."""
     owner = ROOT / "components" / "LyricsSource.qml"
     if LYRICS_URL not in owner.read_text():
         failures.append(f"components/LyricsSource.qml: the lyrics endpoint {LYRICS_URL} is missing")
     for path in SHIPPED:
         text = path.read_text()
         name = path.relative_to(ROOT)
-        if path != owner and re.search(r"\bXMLHttpRequest\b", text):
-            failures.append(f"{name}: uses XMLHttpRequest; only components/LyricsSource.qml may")
+        if re.search(r"\bXMLHttpRequest\b", text):
+            failures.append(f"{name}: uses XMLHttpRequest; no shipped file may use XMLHttpRequest")
         # The bare host name may appear as display text (the settings row
         # names the service it contacts); a URL to it may not.
         if path != owner and "https://lrclib.net" in text:
@@ -721,12 +722,14 @@ def check_network_confined():
             if "http://" in line:
                 failures.append(f"{name}:{number}: a plain http:// URL in shipped code")
     check_lyrics_gates()
+    check_lyrics_fetch()
 
 
 # The Panel's wiring is what keeps a lookup opt-in and on screen: island mode
 # with the setting on, the island visible (never while locked) and expanded
 # on the Lyrics view, and a source only while the UI is allowed.
 LYRICS_GATES = {
+    "fetcher": ["lyricsFetch"],
     "lyricsEnabled": ["root.islandMode", "root.coordinator.lyrics === true"],
     "wanted": ["root.islandVisible", "root.surface.expanded", '(root.surface.view === "home" || root.surface.view === "lyrics")'],
     "endpoint": ["root.coordinator.uiAllowed === true"],
@@ -747,6 +750,24 @@ def check_lyrics_gates():
         for term in terms:
             if term not in binding.group(1):
                 failures.append(f"Panel.qml: LyricsSource {name} lost its gate {term}")
+
+
+def check_lyrics_fetch():
+    """LyricsFetch.qml wraps nookisle-artwork-fetch in a short-lived process
+    with the exact argv, collects bounded stdout, and kills the child on cancel()."""
+    path = ROOT / "components" / "LyricsFetch.qml"
+    if not path.is_file():
+        failures.append("components/LyricsFetch.qml: missing component")
+        return
+    text = path.read_text()
+    if 'Qt.resolvedUrl("../libexec/nookisle-artwork-fetch")' not in text:
+        failures.append("components/LyricsFetch.qml: must resolve libexec/nookisle-artwork-fetch via Qt.resolvedUrl")
+    if '"--lyrics"' not in text:
+        failures.append("components/LyricsFetch.qml: argv must pass '--lyrics'")
+    if "StdioCollector" not in text:
+        failures.append("components/LyricsFetch.qml: must collect stdout with StdioCollector")
+    if "process.signal(9)" not in text:
+        failures.append("components/LyricsFetch.qml: cancel must kill the child with signal(9)")
 
 
 def check_island_content_free():

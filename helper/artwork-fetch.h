@@ -15,6 +15,8 @@ namespace Island {
 // staying resident in the helper.
 inline constexpr qsizetype ArtworkHeaderLimit = 16 * 1024;
 inline constexpr qsizetype ArtworkWireLimit = ArtworkInputLimit + 64 * 1024;
+inline constexpr qsizetype LyricsInputLimit = 262144;
+inline constexpr qsizetype LyricsWireLimit = LyricsInputLimit + 64 * 1024;
 // Shared production parsers are independently testable without opening a
 // private-network exception in the downloader.
 struct ArtworkResponse {
@@ -23,6 +25,7 @@ struct ArtworkResponse {
     QString error;
 };
 ArtworkResponse parseArtworkResponse(const QByteArray &response);
+ArtworkResponse parseLyricsResponse(const QByteArray &response);
 bool publicArtworkAddress(const QHostAddress &address);
 bool validArtworkUrl(const QUrl &url);
 
@@ -32,13 +35,15 @@ bool validArtworkUrl(const QUrl &url);
 class ArtworkFetch final : public QObject {
     Q_OBJECT
 public:
-    explicit ArtworkFetch(QObject *parent = nullptr);
+    enum class Mode { Artwork, Lyrics };
+    explicit ArtworkFetch(Mode mode = Mode::Artwork, QObject *parent = nullptr);
     ~ArtworkFetch() override;
     void start(const QUrl &url);
 signals:
     void fetched(const QByteArray &bytes, const QByteArray &mime);
     void failed(const QString &code);
 private:
+    Mode mode_ = Mode::Artwork;
     QPointer<QSslSocket> socket_;
     QTimer deadline_;
     QByteArray response_;
@@ -48,6 +53,8 @@ private:
     int lookup_ = -1, redirects_ = 0;
     bool active_ = false;
     bool busy() const { return active_; }
+    qsizetype inputLimit() const { return mode_ == Mode::Lyrics ? LyricsInputLimit : ArtworkInputLimit; }
+    qsizetype wireLimit() const { return mode_ == Mode::Lyrics ? LyricsWireLimit : ArtworkWireLimit; }
     void resolveUrl();
     void connectAddress(const QHostAddress &address);
     void consume();

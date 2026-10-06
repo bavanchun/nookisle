@@ -91,6 +91,43 @@ private slots:
         QVERIFY(parsed.error.isEmpty());
         QCOMPARE(parsed.redirect.toString(), "/next.png");
     }
+    void parsesRealLyricsBodiesWithHardLimits() {
+        const QByteArray json = "{\"syncedLyrics\":\"[00:01.00]test\"}";
+        auto parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+            + QByteArray::number(json.size()) + "\r\n\r\n" + json);
+        QVERIFY(parsed.error.isEmpty());
+        QCOMPARE(parsed.mime, "200");
+        QCOMPARE(parsed.bytes, json);
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\n\r\nNot Found");
+        QVERIFY(parsed.error.isEmpty());
+        QCOMPARE(parsed.mime, "404");
+        QCOMPARE(parsed.bytes, "Not Found");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + json);
+        QCOMPARE(parsed.error, "network");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 300000\r\n\r\n" + json);
+        QCOMPARE(parsed.error, "too-large");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + QByteArray(262145, 'x'));
+        QCOMPARE(parsed.error, "too-large");
+
+        auto chunks = QByteArray::number(json.size(), 16) + "\r\n" + json + "\r\n0\r\n\r\n";
+        parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n" + chunks);
+        QVERIFY(parsed.error.isEmpty());
+        QCOMPARE(parsed.bytes, json);
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n40001\r\n" + QByteArray(0x40001, ' ') + "\r\n0\r\n\r\n");
+        QCOMPARE(parsed.error, "too-large");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 302 Found\r\nLocation: /next\r\n\r\n");
+        QVERIFY(parsed.error.isEmpty());
+        QCOMPARE(parsed.redirect.toString(), "/next");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        QCOMPARE(parsed.error, "network");
+    }
     void realPngAndJpegDecodeAndStripMetadata() {
         QString error;
         auto image = Island::decodeArtwork(png(QSize(1024, 1024)), "image/png", &error);
@@ -714,6 +751,24 @@ class ArtworkNetworkTest : public QObject {
         return "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: "
             + QByteArray::number(bytes.size()) + "\r\n\r\n" + bytes;
     }
+    struct LyricsOutput {
+        int exitCode = -1;
+        QByteArray stdoutData;
+    };
+    LyricsOutput runLyrics(const QUrl &targetUrl, int timeoutMs = 6000) {
+        QProcess process;
+        process.start(FETCH_PATH, {"--lyrics", targetUrl.toString(), "--ca-file", runtime.filePath("cert.pem")});
+        QElapsedTimer elapsed;
+        elapsed.start();
+        while (process.state() != QProcess::NotRunning && elapsed.elapsed() < timeoutMs) {
+            QTest::qWait(20);
+        }
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(1000);
+        }
+        return {process.exitCode(), process.readAllStandardOutput()};
+    }
 private slots:
     void initTestCase() {
         QVERIFY(runtime.isValid());
@@ -828,6 +883,83 @@ private slots:
         QCOMPARE(failed[0][1].toString(), "art-timeout");
         QVERIFY(elapsed.elapsed() >= 4500 && elapsed.elapsed() < 6000);
         QCOMPARE(ready.size(), 0);
+    }
+    void lyricsPasses200JsonAndChecksHeaders() {
+        ArtworkTlsServer server;
+        prepare(server);
+        const QByteArray json = "{\"syncedLyrics\":\"[00:01.00]test\"}";
+        server.reply = [&json](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                + QByteArray::number(json.size()) + "\r\n\r\n" + json;
+        };
+        const auto result = runLyrics(url(server, "/lyrics-200"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "ok 200\n" + json);
+        QCOMPARE(server.requests.size(), 1);
+        const auto req = server.requests[0].toLower();
+        QVERIFY(req.contains("accept: application/json\r\n"));
+        QVERIFY(req.contains("accept-encoding: identity\r\n"));
+        QVERIFY(req.contains("lrclib-client: nookisle (https://github.com/bavanchun/nookisle)\r\n"));
+    }
+    void lyricsPasses404ThroughWithAnyContentType() {
+        ArtworkTlsServer server;
+        prepare(server);
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nnot found";
+        };
+        const auto result = runLyrics(url(server, "/lyrics-404"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "ok 404\nnot found");
+    }
+    void lyricsRefusesOversizedBodiesWhileStreaming() {
+        ArtworkTlsServer server;
+        prepare(server);
+        // Declared Content-Length > 256 KiB
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 300000\r\n\r\n" + QByteArray(300000, 'x');
+        };
+        auto result = runLyrics(url(server, "/oversize-cl"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error too-large\n");
+
+        // No Content-Length, streaming exceeds 256 KiB
+        server.requests.clear();
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + QByteArray(270000, 'x');
+        };
+        result = runLyrics(url(server, "/oversize-stream"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error too-large\n");
+
+        // Chunked encoding > 256 KiB
+        server.requests.clear();
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n40001\r\n"
+                + QByteArray(0x40001, 'a') + "\r\n0\r\n\r\n";
+        };
+        result = runLyrics(url(server, "/oversize-chunked"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error too-large\n");
+    }
+    void lyricsRefusesWrongContentTypeOn200() {
+        ArtworkTlsServer server;
+        prepare(server);
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body>Not JSON</body></html>";
+        };
+        const auto result = runLyrics(url(server, "/wrong-type"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error network\n");
+    }
+    void lyricsRefusesRedirectToHttp() {
+        ArtworkTlsServer server;
+        prepare(server);
+        server.reply = [](const QByteArray &) {
+            return "HTTP/1.1 302 Found\r\nLocation: http://1.1.1.1/insecure\r\n\r\n";
+        };
+        const auto result = runLyrics(url(server, "/redirect-http"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error network\n");
     }
 };
 

@@ -3,15 +3,15 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../qml/Lyrics.js" as Lyrics
 
-// Synced lyrics from LRCLIB for the Lyrics view. Pure QtQuick, so
-// qmltestrunner drives it against a local fixture server. Panel.qml holds the
-// one instance, so the cache outlives the view. The plugin's only network
-// request lives here, and it runs only while `lyricsEnabled` (the opt-in
-// `lyrics` setting) and `wanted` (the Lyrics view is open) both hold: on
-// opening, or once a track change settles while open. It sends the title,
-// the first artist, the album and the rounded length, and is bounded by a
-// timeout and a size cap. Turning lyrics off aborts it and forgets every
-// cached answer.
+// Synced lyrics from LRCLIB for the Lyrics view. Pure QtQuick, driven
+// through an injected fetcher (LyricsFetch in production, wrapping the
+// nookisle-artwork-fetch child process). Panel.qml holds the one instance,
+// so the cache outlives the view. The lyrics lookup runs only while
+// `lyricsEnabled` (the opt-in `lyrics` setting) and `wanted` (the Lyrics view
+// is open) both hold: on opening, or once a track change settles while open.
+// It sends the title, the first artist, the album and the rounded length,
+// and is bounded by a timeout and a streaming size cap. Turning lyrics off
+// aborts it and forgets every cached answer.
 QtObject {
     id: root
     property bool lyricsEnabled: false
@@ -27,6 +27,20 @@ QtObject {
     // so skipping through tracks, or metadata that settles in steps, sends
     // one lookup for the track that stays rather than one per step.
     property int settleMs: 400
+    property var fetcher: null
+
+    property Connections fetchConnections: Connections {
+        target: root.fetcher
+        ignoreUnknownSignals: true
+        function onFinished(status, text) {
+            if (root.active)
+                root.finish(status, text)
+        }
+        function onFailed(code) {
+            if (root.active)
+                root.fail(code)
+        }
+    }
 
     // "idle" | "loading" | "ready" | "plain" | "none" | "instrumental" |
     // "error" | "no-length"
@@ -56,15 +70,10 @@ QtObject {
     function abort() {
         timeout.stop()
         settle.stop()
-        var request = root.active
         root.active = null
         root.activeKey = ""
-        // Deferred: this often runs inside the request's own readystatechange
-        // callback, and Qt 6.11 reads the reply again after that callback
-        // returns, which crashes on a reply that abort() already freed. The
-        // request is disowned above, so nothing it still reports is used.
-        if (request)
-            Qt.callLater(function () { request.abort() })
+        if (root.fetcher && typeof root.fetcher.cancel === "function")
+            root.fetcher.cancel()
     }
     function fail(code) {
         var key = root.activeKey
@@ -129,33 +138,12 @@ QtObject {
             request(key, meta)
     }
     function request(key, meta) {
-        var xhr = new XMLHttpRequest()
-        root.active = xhr
+        if (!root.fetcher || typeof root.fetcher.start !== "function")
+            return
+        root.active = root.fetcher
         root.activeKey = key
-        xhr.open("GET", Lyrics.requestUrl(root.endpointUrl, meta))
-        try {
-            xhr.setRequestHeader("Lrclib-Client", "Nookisle (https://github.com/bavanchun/nookisle)")
-        } catch (error) {
-            // Optional: LRCLIB answers without it.
-        }
-        xhr.onreadystatechange = function () {
-            if (xhr !== root.active)
-                return
-            if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
-                var length = Number(xhr.getResponseHeader("Content-Length"))
-                if (length > root.maxBytes)
-                    root.fail("too-large")
-            } else if (xhr.readyState >= XMLHttpRequest.LOADING) {
-                // Qt reports LOADING once, for the first chunk, so the cap is
-                // enforced there and again on the whole answer at DONE, in
-                // UTF-8 bytes like the declared length.
-                if (Lyrics.byteLength(xhr.responseText, root.maxBytes) > root.maxBytes)
-                    root.fail("too-large")
-                else if (xhr.readyState === XMLHttpRequest.DONE)
-                    root.finish(xhr.status, xhr.responseText)
-            }
-        }
-        xhr.send()
+        var url = Lyrics.requestUrl(root.endpointUrl, meta)
+        root.fetcher.start(url)
         timeout.restart()
     }
     // Try again from the view. Errors are never cached; a cached miss is
