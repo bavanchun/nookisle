@@ -62,7 +62,8 @@ REBUILD_SUMS="${WORK_DIR}/SHA256SUMS"
     "${ARCHLINUX_IMAGE}" bash -c '
 set -euo pipefail
 echo "Server = https://archive.archlinux.org/repos/${ALA_DATE}/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
-pacman -Syuu --noconfirm base-devel cmake ninja git qt6-base qt6-declarative qt6-multimedia nlohmann-json openssl libpipewire systemd-libs pkgconf python python-gobject nodejs iproute2 dbus >/dev/null
+# Double y forces the snapshot databases so the bootstrap sync cannot leak newer packages.
+pacman -Syyuu --noconfirm base-devel cmake ninja git qt6-base qt6-declarative qt6-multimedia nlohmann-json openssl libpipewire systemd-libs pkgconf python python-gobject nodejs iproute2 dbus >/dev/null
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 dbus-uuidgen --ensure
 
