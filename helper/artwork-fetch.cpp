@@ -10,6 +10,31 @@ namespace {
 constexpr qsizetype InputLimit = Island::ArtworkInputLimit;
 constexpr qsizetype HeaderLimit = Island::ArtworkHeaderLimit;
 constexpr qsizetype WireLimit = Island::ArtworkWireLimit;
+
+enum class HeaderStatus {
+    Ok,
+    Malformed,
+    GuardedDuplicate,
+};
+
+bool isGuardedHeader(const QByteArray &key) {
+    return key == "content-length" || key == "transfer-encoding"
+        || key == "content-encoding" || key == "content-type"
+        || key == "location";
+}
+
+HeaderStatus insertHeader(QHash<QByteArray, QByteArray> &headers, const QByteArray &line) {
+    if (line.startsWith(' ') || line.startsWith('\t')) return HeaderStatus::Malformed;
+    const auto colon = line.indexOf(':');
+    if (colon <= 0) return HeaderStatus::Malformed;
+    const auto key = line.left(colon).toLower();
+    if (headers.contains(key)) {
+        if (isGuardedHeader(key)) return HeaderStatus::GuardedDuplicate;
+        return HeaderStatus::Ok;
+    }
+    headers[key] = line.mid(colon + 1).trimmed();
+    return HeaderStatus::Ok;
+}
 }
 
 namespace Island {
@@ -55,13 +80,10 @@ ArtworkResponse parseArtworkResponse(const QByteArray &response) {
     const int code = status[1].toInt(&valid);
     if (!valid) return reject("art-http");
     QHash<QByteArray, QByteArray> headers;
-    for (auto line : lines) {
-        if (line.startsWith(' ') || line.startsWith('\t')) return reject("art-header");
-        const auto colon = line.indexOf(':');
-        if (colon <= 0) return reject("art-header");
-        const auto key = line.left(colon).toLower();
-        if (headers.contains(key)) return reject("art-header-duplicate");
-        headers[key] = line.mid(colon + 1).trimmed();
+    for (const auto &line : lines) {
+        const auto status = insertHeader(headers, line);
+        if (status == HeaderStatus::Malformed) return reject("art-header");
+        if (status == HeaderStatus::GuardedDuplicate) return reject("art-header-duplicate");
     }
     if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
         result.redirect = QUrl::fromEncoded(headers.value("location"), QUrl::StrictMode);
@@ -119,13 +141,9 @@ ArtworkResponse parseLyricsResponse(const QByteArray &response) {
     const int code = status[1].toInt(&valid);
     if (!valid) return reject("network");
     QHash<QByteArray, QByteArray> headers;
-    for (auto line : lines) {
-        if (line.startsWith(' ') || line.startsWith('\t')) return reject("network");
-        const auto colon = line.indexOf(':');
-        if (colon <= 0) return reject("network");
-        const auto key = line.left(colon).toLower();
-        if (headers.contains(key)) return reject("network");
-        headers[key] = line.mid(colon + 1).trimmed();
+    for (const auto &line : lines) {
+        const auto status = insertHeader(headers, line);
+        if (status != HeaderStatus::Ok) return reject("network");
     }
     if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
         result.redirect = QUrl::fromEncoded(headers.value("location"), QUrl::StrictMode);

@@ -128,6 +128,51 @@ private slots:
         parsed = Island::parseLyricsResponse("HTTP/1.1 500 Internal Server Error\r\n\r\n");
         QCOMPARE(parsed.error, "network");
     }
+    void repeatedHeadersPolicy() {
+        const QByteArray cfHeaders =
+            "Date: Tue, 06 Oct 2026 15:43:45 GMT\r\n"
+            "Content-Type: application/json\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "Connection: close\r\n"
+            "Server: cloudflare\r\n"
+            "vary: Accept-Encoding\r\n"
+            "vary: origin, access-control-request-method, access-control-request-headers\r\n"
+            "access-control-allow-origin: *\r\n"
+            "access-control-expose-headers: retry-after\r\n"
+            "cf-cache-status: DYNAMIC\r\n"
+            "alt-svc: h3=\":443\"; ma=86400\r\n";
+
+        const QByteArray json = "{\"syncedLyrics\":\"[00:01.00]test\"}";
+        const auto jsonChunks = QByteArray::number(json.size(), 16) + "\r\n" + json + "\r\n0\r\n\r\n";
+        const QByteArray cfLyricsResponse = "HTTP/1.1 200 OK\r\n" + cfHeaders + "\r\n" + jsonChunks;
+        auto lyricsResult = Island::parseLyricsResponse(cfLyricsResponse);
+        QVERIFY2(lyricsResult.error.isEmpty(), qPrintable(lyricsResult.error));
+        QCOMPARE(lyricsResult.mime, "200");
+        QCOMPARE(lyricsResult.bytes, json);
+
+        const auto pngBytes = png();
+        const auto pngChunks = QByteArray::number(pngBytes.size(), 16) + "\r\n" + pngBytes + "\r\n0\r\n\r\n";
+        QByteArray cfArtHeaders = cfHeaders;
+        cfArtHeaders.replace("Content-Type: application/json\r\n", "Content-Type: image/png\r\n");
+        const QByteArray cfArtworkResponse = "HTTP/1.1 200 OK\r\n" + cfArtHeaders + "\r\n" + pngChunks;
+        auto artResult = Island::parseArtworkResponse(cfArtworkResponse);
+        QVERIFY2(artResult.error.isEmpty(), qPrintable(artResult.error));
+        QCOMPARE(artResult.mime, "image/png");
+        QCOMPARE(artResult.bytes, pngBytes);
+
+        // Repeated guarded headers must still be rejected by both parsers
+        QCOMPARE(Island::parseArtworkResponse("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 10\r\nContent-Length: 10\r\n\r\n0123456789").error, "art-header-duplicate");
+        QCOMPARE(Island::parseArtworkResponse("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n").error, "art-header-duplicate");
+        QCOMPARE(Island::parseArtworkResponse("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Encoding: identity\r\nContent-Encoding: identity\r\n\r\n" + pngBytes).error, "art-header-duplicate");
+        QCOMPARE(Island::parseArtworkResponse("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Type: image/png\r\n\r\n" + pngBytes).error, "art-header-duplicate");
+        QCOMPARE(Island::parseArtworkResponse("HTTP/1.1 302 Found\r\nLocation: /a.png\r\nLocation: /b.png\r\n\r\n").error, "art-header-duplicate");
+
+        QCOMPARE(Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 10\r\nContent-Length: 10\r\n\r\n0123456789").error, "network");
+        QCOMPARE(Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n").error, "network");
+        QCOMPARE(Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Encoding: identity\r\nContent-Encoding: identity\r\n\r\n" + json).error, "network");
+        QCOMPARE(Island::parseLyricsResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Type: application/json\r\n\r\n" + json).error, "network");
+        QCOMPARE(Island::parseLyricsResponse("HTTP/1.1 302 Found\r\nLocation: /a\r\nLocation: /b\r\n\r\n").error, "network");
+    }
     void realPngAndJpegDecodeAndStripMetadata() {
         QString error;
         auto image = Island::decodeArtwork(png(QSize(1024, 1024)), "image/png", &error);
