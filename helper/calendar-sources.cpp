@@ -1,4 +1,5 @@
 #include "calendar-sources.h"
+#include "artwork-fetch.h"
 #include "ipc-protocol.h"
 #include <QCryptographicHash>
 #include <QDir>
@@ -23,18 +24,7 @@
 
 namespace Island::Calendar {
 bool isLocalAddress(const QHostAddress &address) {
-    if (address.isLoopback() || address.isLinkLocal() || address.isNull()) return true;
-    bool hasIpv4 = false;
-    quint32 ip = address.toIPv4Address(&hasIpv4);
-    if (hasIpv4) {
-        return (ip >> 24) == 10 || (ip >> 20) == 0xac1 || (ip >> 16) == 0xc0a8
-            || (ip >> 24) == 127 || (ip >> 16) == 0xa9fe || (ip >> 24) == 0;
-    }
-    if (address.protocol() == QAbstractSocket::IPv6Protocol) {
-        auto ip = address.toIPv6Address();
-        return (ip[0] & 0xfe) == 0xfc || address.isLoopback() || address.isLinkLocal();
-    }
-    return true;
+    return !publicArtworkAddress(address);
 }
 QNetworkRequest pinnedRequest(const QUrl &url, const QHostAddress &address, qint64 timeoutMs) {
     QUrl pinned(url);
@@ -44,11 +34,23 @@ QNetworkRequest pinnedRequest(const QUrl &url, const QHostAddress &address, qint
     req.setPeerVerifyName(url.host());
     req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    req.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
+    req.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
     req.setTransferTimeout(qMax<qint64>(1, timeoutMs));
     return req;
 }
 
 namespace {
+int effectivePort(const QUrl &url) {
+    return url.port(url.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) == 0 ? 443 : 80);
+}
+
+bool isSameOrigin(const QUrl &a, const QUrl &b) {
+    return a.scheme().compare(b.scheme(), Qt::CaseInsensitive) == 0
+        && a.host().compare(b.host(), Qt::CaseInsensitive) == 0
+        && effectivePort(a) == effectivePort(b);
+}
+
 QString idFor(const QJsonObject &definition) {
     auto text = definition.value("kind").toString() + "\n" + definition.value("path").toString()
         + "\n" + definition.value("url").toString() + "\n" + definition.value("user").toString();
@@ -62,8 +64,7 @@ bool hasUserInfo(const QString &url) {
                                              QRegularExpression::CaseInsensitiveOption);
     return userinfo.match(url).hasMatch() || !QUrl(url).userInfo().isEmpty();
 }
-QString checkUrl(const QUrl &url, bool allowLocal) {
-    Q_UNUSED(allowLocal)
+QString checkUrl(const QUrl &url) {
     if (!url.isValid() || url.host().isEmpty() || !url.userInfo().isEmpty()
         || (url.scheme() != "https" && !(url.scheme() == "http" && url.host() == "localhost"))) return "invalid-url";
     return {};
@@ -412,7 +413,7 @@ void Sources::request(const QString &id, const QString &method, const QUrl &url,
                       const std::function<void(QString, QByteArray, QByteArray)> &done, int redirects, qint64 deadline) {
     if (!enabled_ || !sources_.contains(id)) { done("disabled", {}, {}); return; }
     const Source source = sources_.value(id);
-    QString check = checkUrl(url, source.allowLocalNetwork);
+    QString check = checkUrl(url);
     if (!check.isEmpty()) { done(check, {}, {}); return; }
     if (!deadline) deadline = QDateTime::currentMSecsSinceEpoch() + 8000;
     const quint64 generation = generation_;
@@ -449,6 +450,7 @@ void Sources::request(const QString &id, const QString &method, const QUrl &url,
             QNetworkRequest req = pinnedRequest(url, address, deadline - QDateTime::currentMSecsSinceEpoch());
             for (auto it = headers.begin(); it != headers.end(); ++it) req.setRawHeader(it.key(), it.value());
             auto *reply = network_.sendCustomRequest(req, method.toUtf8(), body);
+            reply->setReadBufferSize(SourceLimit + 1);
             pending->reply = reply;
             replies_.insert(reply);
             connect(reply, &QNetworkReply::metaDataChanged, this, [reply] {
@@ -469,7 +471,7 @@ void Sources::request(const QString &id, const QString &method, const QUrl &url,
                     int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                     if (status >= 300 && status < 400) {
                         QUrl next = url.resolved(reply->header(QNetworkRequest::LocationHeader).toUrl());
-                        if (redirects >= 3 || next.host().compare(url.host(), Qt::CaseInsensitive) != 0) { done("redirect-refused", {}, {}); return; }
+                        if (redirects >= 3 || !isSameOrigin(next, url)) { done("redirect-refused", {}, {}); return; }
                         request(id, method, next, body, headers, done, redirects + 1, deadline); return;
                     }
                     if (status == 401 || status == 403) { done("auth-error", {}, {}); return; }
@@ -531,7 +533,7 @@ void Sources::refreshRemoteWithPassword(const QString &id, const QString &passwo
                 auto parsed = parse(member.data);
                 if (!parsed.error.isEmpty()) { result.error = parsed.error; break; }
                 auto memberUrl = QUrl(url).resolved(QUrl(member.href));
-                if (memberUrl.host() != QUrl(url).host()) { result.error = "redirect-refused"; break; }
+                if (!isSameOrigin(memberUrl, QUrl(url))) { result.error = "redirect-refused"; break; }
                 for (const auto &entry : parsed.entries) {
                     result.entries.append(entry);
                     result.members.insert(entry.uid, {memberUrl.toString(), member.etag, member.data});

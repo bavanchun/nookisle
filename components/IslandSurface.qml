@@ -214,7 +214,7 @@ Item {
     // object cannot be passed through the real `dropped` signal from a test.
     // The real `onDropped` handler below calls this directly, so
     // tst-island-surface.qml exercises the actual wiring rather than a
-    // facade shortcut (code review L6).
+    // facade shortcut.
     function handleDrop(dropEvent) {
         if (!settings.shelfEnabled || !dropInSupported || !coordinator
                 || !(dropEvent.supportedActions & Qt.CopyAction)) {

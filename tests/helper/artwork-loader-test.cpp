@@ -551,6 +551,7 @@ private slots:
         QTest::addColumn<QString>("code");
         QTest::newRow("directory") << "directory" << "art-local-file";
         QTest::newRow("device") << "device" << "art-local-file";
+        QTest::newRow("fifo") << "fifo" << "art-local-file";
         QTest::newRow("text") << "text" << "art-mime";
         QTest::newRow("missing") << "missing" << "art-local-read";
     }
@@ -558,17 +559,26 @@ private slots:
         QFETCH(QString, kind);
         QFETCH(QString, code);
         QTemporaryDir files;
-        QString path = kind == "directory" ? files.path() : kind == "device" ? QString("/dev/zero")
-            : files.filePath(kind == "text" ? "notes.png" : "absent.png");
-        if (kind == "text") {
+        QString path;
+        if (kind == "directory") {
+            path = files.path();
+        } else if (kind == "device") {
+            path = QString("/dev/zero");
+        } else if (kind == "fifo") {
+            path = files.filePath("stream.fifo");
+            QVERIFY(::mkfifo(QFile::encodeName(path).constData(), 0600) == 0);
+        } else if (kind == "text") {
+            path = files.filePath("notes.png");
             QFile text(path);
             QVERIFY(text.open(QIODevice::WriteOnly));
             text.write("not an image");
+        } else {
+            path = files.filePath("absent.png");
         }
         Island::ArtworkLoader loader(nullptr, DECODER_PATH);
         QSignalSpy failed(&loader, &Island::ArtworkLoader::failed);
         loader.request(QUrl::fromLocalFile(path), "unsafe");
-        QCOMPARE(failed.size(), 1);
+        QTRY_COMPARE_WITH_TIMEOUT(failed.size(), 1, 5000);
         QCOMPARE(failed[0][1].toString(), code);
         QVERIFY(!loader.decoder_);
         QVERIFY(!loader.busy());

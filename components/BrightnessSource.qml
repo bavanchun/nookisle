@@ -42,14 +42,14 @@ Item {
         '  [ -r "$path/max_brightness" ] || continue\n' +
         '  name=${path##*/}\n' +
         '  [ -n "$wanted" ] || [ "$name" != appletb_backlight ] || continue\n' +
-        '  max=$(cat "$path/max_brightness")\n' +
+        '  max=""; read -r max < "$path/max_brightness" || [ -n "$max" ] || continue\n' +
         '  case $max in ""|*[!0-9]*) continue;; esac\n' +
         '  [ "$max" -gt 0 ] || continue\n' +
         '  printf "B %s\\n" "$name"; break\n' +
         'done\n' +
         'for path in "$root"/class/leds/*kbd_backlight*; do\n' +
         '  [ -r "$path/max_brightness" ] || continue\n' +
-        '  max=$(cat "$path/max_brightness")\n' +
+        '  max=""; read -r max < "$path/max_brightness" || [ -n "$max" ] || continue\n' +
         '  case $max in ""|*[!0-9]*) continue;; esac\n' +
         '  [ "$max" -gt 0 ] || continue\n' +
         '  printf "K %s\\n" "${path##*/}"; break\n' +
@@ -60,6 +60,7 @@ Item {
         if (discovery.running) { root.rediscover = true; return }
         root.discoveryRoot = root.sysRoot
         root.discoveryOverride = root.backlightOverride
+        // Shell globbing is needed to discover backlight and keyboard sysfs devices under variable paths.
         discovery.command = ["sh", "-c", root.discoveryScript, "sh", root.discoveryRoot, root.discoveryOverride]
         discovery.running = true
     }

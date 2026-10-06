@@ -49,6 +49,79 @@ class MediaKeysLocaleTest(unittest.TestCase):
             self.assertRegex(token, r"^[0-9]+-[0-9]+$")
             self.assertRegex(expires, r"^[0-9]{13}$")
 
+    def _setup_media_keys_test_env(self, tmp, log_file):
+        root = pathlib.Path(tmp)
+        bin_dir = root / "bin"
+        bin_dir.mkdir(mode=0o700, exist_ok=True)
+        fakes = {
+            "omarchy-audio-output-sink": "#!/bin/sh\necho fake-sink\nexit 0\n",
+            "omarchy-audio-output-volume": f"#!/bin/sh\necho fallback-volume \"$@\" >> '{log_file}'\nexit 0\n",
+            "omarchy-shell": "#!/bin/sh\n[ \"$1\" = nookisle ] && [ \"$2\" = hudReadout ] && echo ok\nexit 0\n",
+            "pactl": f"#!/bin/sh\necho \"$@\" >> '{log_file}'\nexit 0\n",
+        }
+        for name, body in fakes.items():
+            p = bin_dir / name
+            p.write_text(body)
+            p.chmod(0o700)
+        return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "HOME": tmp, "LOG_FILE": str(log_file)}
+
+    def test_mute_toggle_fallback_when_runtime_dir_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_file = pathlib.Path(tmp) / "pactl.log"
+            env = self._setup_media_keys_test_env(tmp, log_file)
+            env.pop("XDG_RUNTIME_DIR", None)
+            subprocess.run([str(SCRIPT), "volume", "mute-toggle"], env=env, check=True, timeout=10)
+            self.assertTrue(log_file.exists())
+            self.assertIn("fallback-volume mute-toggle", log_file.read_text())
+
+    def test_mute_toggle_debounce_skipped_when_runtime_dir_mode_not_700(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            log_file = root / "pactl.log"
+            env = self._setup_media_keys_test_env(tmp, log_file)
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o755)
+            env["XDG_RUNTIME_DIR"] = str(runtime)
+            subprocess.run([str(SCRIPT), "volume", "mute-toggle"], env=env, check=True, timeout=10)
+            self.assertTrue(log_file.exists())
+            self.assertIn("set-sink-mute fake-sink toggle", log_file.read_text())
+            self.assertFalse((runtime / "omarchy-audio-output-volume-mute-toggle.last").exists())
+
+    def test_mute_toggle_debounces_rapid_invocations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            log_file = root / "pactl.log"
+            env = self._setup_media_keys_test_env(tmp, log_file)
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+            env["XDG_RUNTIME_DIR"] = str(runtime)
+            subprocess.run([str(SCRIPT), "volume", "mute-toggle"], env=env, check=True, timeout=10)
+            self.assertTrue(log_file.exists())
+            self.assertIn("set-sink-mute fake-sink toggle", log_file.read_text())
+            debounce = runtime / "omarchy-audio-output-volume-mute-toggle.last"
+            self.assertTrue(debounce.exists())
+
+            log_file.unlink()
+            subprocess.run([str(SCRIPT), "volume", "mute-toggle"], env=env, check=True, timeout=10)
+            self.assertFalse(log_file.exists())
+
+    def test_mute_toggle_replaces_symlink_debounce_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            log_file = root / "pactl.log"
+            env = self._setup_media_keys_test_env(tmp, log_file)
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+            target = root / "target"
+            target.write_text("untouched")
+            symlink = runtime / "omarchy-audio-output-volume-mute-toggle.last"
+            symlink.symlink_to(target)
+            env["XDG_RUNTIME_DIR"] = str(runtime)
+            subprocess.run([str(SCRIPT), "volume", "mute-toggle"], env=env, check=True, timeout=10)
+            self.assertEqual(target.read_text(), "untouched")
+            self.assertFalse(symlink.is_symlink())
+            self.assertTrue(symlink.is_file())
+
 
 if __name__ == "__main__":
     sys.exit(unittest.main())

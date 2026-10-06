@@ -142,7 +142,7 @@ ${visibilityHandlers}
             readonly property bool allDisplays: root.islandMode && displayMode === "all"
             readonly property alias surfaceStub: surfaceObject
             // Screen selection is this fixture's only concern; syncSubscription
-            // (called from islandSurfaceConnections, code review L1) has no
+            // (called from islandSurfaceConnections) has no
             // subscription state to reconcile here.
             function syncSubscription() {}
             QtObject { id: panel; property bool keyboardLent: false }

@@ -29,7 +29,7 @@ ShellRoot {
         property int registryRevision: 0
         property var installedPlugins: ({})
         property bool enabled: true
-        // A working settings store, so configure() (phase 06's hud:false path)
+        // A working settings store, so configure() (the hud:false path)
         // has somewhere real to write to; the real host's shellConfigMutator
         // does the same read-modify-write against its own config object.
         property var shellConfig: ({ plugins: [{ id: "io.github.bavanchun.nookisle", settings: ({}) }] })
@@ -1123,7 +1123,7 @@ ShellRoot {
                 test.check(test.active.configure({ hud: true }) === true, "hud restored")
                 test.stage = 661
             } else if (test.stage === 661 && test.active.brightnessMonitorRunning) {
-                // L4 (code review): island:false hides the pill that would
+                // island:false hides the pill that would
                 // ever show the HUD, so the backlight monitor must stop then
                 // too, not just when hud:false.
                 test.check(test.active.configure({ island: false }) === true, "island can be turned off")
@@ -1213,7 +1213,7 @@ ShellRoot {
                     "a completed display write re-reads the backlight level")
                 var svc = test.active
                 svc.hudEvent.disconnect(test.captureHud)
-                // Shelf cap (phase 07): shelfAdd rejects overflow rather than
+                // Shelf cap: shelfAdd rejects overflow rather than
                 // evicting what is already shelved.
                 svc.shelfClear()
                 var many = []
@@ -1223,7 +1223,7 @@ ShellRoot {
                     "shelfAdd caps the Service list at the default shelfLimit of 64")
                 svc.shelfClear()
                 svc.shelfAdd(["file:///tmp/a.txt"])
-                // Missing-binary clipboard path (phase 07): a binary Paste
+                // Missing-binary clipboard path: a binary Paste
                 // cannot find never disables it; it reports the reason
                 // instead. QProcess resolves the executable using this
                 // process's own PATH regardless of the child's configured
@@ -1267,7 +1267,7 @@ ShellRoot {
                 test.active.shelfNotice = ""
                 test.stage = 6645
             } else if (test.stage === 6645) {
-                // M7 (code review): shelfCopy must refuse a uri that was
+                // shelfCopy must refuse a uri that was
                 // never shelved, so a caller cannot make an arbitrary string
                 // reach the clipboard process.
                 var svc4 = test.active

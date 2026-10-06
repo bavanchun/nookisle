@@ -907,9 +907,9 @@ def check_shelf_processes():
     system = ROOT / "components" / "SystemActions.qml"
     launches = re.findall(r"execDetached\((\[[^\]]*\])", system.read_text())
     programs = sorted(set(re.findall(r'^\["([^"]+)"', launch)[0] for launch in launches if launch.startswith('["')))
-    if len(launches) != 4 or programs != ["omarchy-capture-screenrecording", "omarchy-reminder", "rm", "systemctl"]:
-        failures.append("components/SystemActions.qml: launches only omarchy-reminder, systemctl, rm and "
-                        "omarchy-capture-screenrecording, each as an argument array with a fixed program")
+    if len(launches) != 5 or programs != ["omarchy-capture-screenrecording", "omarchy-reminder", "omarchy-shell", "rm", "systemctl"]:
+        failures.append("components/SystemActions.qml: launches only omarchy-reminder, systemctl, rm, "
+                        "omarchy-shell and omarchy-capture-screenrecording, each as an argument array with a fixed program")
     for path in [ROOT / "Service.qml", ROOT / "Panel.qml", *sorted((ROOT / "components").glob("*.qml"))]:
         if path not in (actions, power, system) and "execDetached" in path.read_text():
             failures.append(f"{path.relative_to(ROOT)}: launches a detached process outside the action owners")

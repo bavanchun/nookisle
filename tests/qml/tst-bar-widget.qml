@@ -521,7 +521,7 @@ TestCase {
     }
     // On multiple monitors, every bar shares the one Service-level
     // `islandPointerActive`; only the bar on the island's own screen may
-    // suppress its centre peek (code review L7).
+    // suppress its centre peek.
     function test_centerPeekSuppressionOnlyOnIslandScreen() {
         facade.island = true;
         var widget = createTemporaryObject(widgetComponent, test);

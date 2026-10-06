@@ -190,8 +190,7 @@ TestCase {
 
     // Panel.qml calls this whenever the volume source Loader reloads (a
     // `hud` toggle, a `barHidden` flip), so a sink known from before the
-    // reload does not compare a fresh baseline against a stale one (code
-    // review M4).
+    // reload does not compare a fresh baseline against a stale one.
     function test_resetBaselinesClearsPriorSinkState() {
         var hud = createTemporaryObject(hudComponent, test);
         hud.noteVolume("sink-a", 0.2, false);

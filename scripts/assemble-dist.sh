@@ -14,10 +14,26 @@ OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 
 SOURCE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+MARKER="${OUT_DIR}/.nookisle-dist-out"
+if [ -d "${OUT_DIR}" ] && [ -n "$(ls -A "${OUT_DIR}" 2>/dev/null)" ]; then
+    is_valid_dist=false
+    if [ -f "${MARKER}" ]; then
+        is_valid_dist=true
+    elif [ -f "${OUT_DIR}/SHA256SUMS" ] && grep -q '^# nookisle ' "${OUT_DIR}/SHA256SUMS"; then
+        is_valid_dist=true
+    fi
+    if [ "$is_valid_dist" = false ]; then
+        echo "ERROR: Output directory '${OUT_DIR}' is not empty and does not contain dist marker '${MARKER}'" >&2
+        echo "Refusing to overwrite unknown or foreign directory." >&2
+        exit 1
+    fi
+fi
+
 echo "==> Assembling dist tree from '${STAGE_DIR}' into '${OUT_DIR}'"
 
 # 1. Clean output directory and copy files from stage
-rm -rf "${OUT_DIR:?}"/*
+find "${OUT_DIR}" -mindepth 1 -delete
+touch "${MARKER}"
 cp -a "${STAGE_DIR}"/* "${OUT_DIR}/"
 
 # Ensure LICENSE and README.md are copied
@@ -51,7 +67,7 @@ EXPECTED_LIBEXEC=(
     "nookisle-spectrum"
 )
 
-ACTUAL_LIBEXEC=($(ls -1 "${OUT_DIR}/libexec" | LC_ALL=C sort))
+mapfile -t ACTUAL_LIBEXEC < <(find "${OUT_DIR}/libexec" -mindepth 1 -maxdepth 1 -printf "%f\n" | LC_ALL=C sort)
 if [ "${EXPECTED_LIBEXEC[*]}" != "${ACTUAL_LIBEXEC[*]}" ]; then
     echo "ERROR: libexec entries mismatch!" >&2
     echo "Expected: ${EXPECTED_LIBEXEC[*]}" >&2
@@ -93,14 +109,14 @@ fi
 echo "  [OK] manifest.json build is valid 40-hex SHA (${BUILD_REV})"
 
 # 5. Exactly one manifest at depth <= 1, no symlinks, and every libexec file executable
-MANIFESTS_DEPTH_LE_1=($(find "${OUT_DIR}" -maxdepth 2 -name "manifest.json"))
+mapfile -t MANIFESTS_DEPTH_LE_1 < <(find "${OUT_DIR}" -maxdepth 2 -name "manifest.json")
 if [ "${#MANIFESTS_DEPTH_LE_1[@]}" -ne 1 ] || [ "${MANIFESTS_DEPTH_LE_1[0]}" != "${OUT_DIR}/manifest.json" ]; then
     echo "ERROR: Expected exactly one manifest.json at depth <= 1, found: ${MANIFESTS_DEPTH_LE_1[*]}" >&2
     exit 1
 fi
 echo "  [OK] Exactly one manifest.json at depth <= 1"
 
-SYMLINKS=($(find "${OUT_DIR}" -type l))
+mapfile -t SYMLINKS < <(find "${OUT_DIR}" -type l)
 if [ "${#SYMLINKS[@]}" -ne 0 ]; then
     echo "ERROR: Symlinks found in dist tree: ${SYMLINKS[*]}" >&2
     exit 1
@@ -136,7 +152,7 @@ fi
 echo "  [OK] No non-ELF files over 512 KiB"
 
 # 7. Rejects plans, tests or *.cpp in the tree
-FORBIDDEN=($(find "${OUT_DIR}" -name "plans" -o -name "tests" -o -name "*.cpp"))
+mapfile -t FORBIDDEN < <(find "${OUT_DIR}" -name "plans" -o -name "tests" -o -name "*.cpp")
 if [ "${#FORBIDDEN[@]}" -ne 0 ]; then
     echo "ERROR: Forbidden files/directories found in dist tree: ${FORBIDDEN[*]}" >&2
     exit 1
@@ -145,7 +161,6 @@ echo "  [OK] No plans, tests or *.cpp in dist tree"
 
 # 8. Checks that relative links in shipped *.md files resolve inside the tree
 ALLOW_DANGLING="${NOOKISLE_ALLOW_DANGLING_LINKS:-0}"
-LINK_CHECK_FAILED=0
 
 python3 - <<EOF
 import os, sys, re, pathlib
@@ -193,6 +208,8 @@ TAG="${NOOKISLE_TAG:-${GITHUB_REF_NAME:-v1.0.0}}"
 # Strip refs/tags/ if full ref passed
 TAG="${TAG#refs/tags/}"
 
+# Remove internal marker before generating checksums so it is never in SHA256SUMS or the dist tree
+rm -f "${MARKER}"
 rm -f "${OUT_DIR}/SHA256SUMS"
 
 echo "# nookisle ${TAG} ${BUILD_REV}" > "${OUT_DIR}/SHA256SUMS"

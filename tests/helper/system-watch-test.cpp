@@ -5,6 +5,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <sys/stat.h>
 #include <unistd.h>
 
 using Island::SystemWatch;
@@ -183,6 +184,19 @@ private slots:
             QVERIFY(watch.configure({{"recording", true}}));
             QCOMPARE(of(spy, "recording").last().value("active").toBool(), false);
         }
+    }
+    // A FIFO at the marker path must not block and must be ignored.
+    void recordingFifoIgnored() {
+        process(400, "gpu-screen-reco");
+        const auto fifoPath = QFile::encodeName(tmp + "/omarchy-screenrecord-filename");
+        QCOMPARE(::mkfifo(fifoPath.constData(), 0600), 0);
+        {
+            SystemWatch watch(paths());
+            QSignalSpy spy(&watch, &SystemWatch::event);
+            QVERIFY(watch.configure({{"recording", true}}));
+            QCOMPARE(of(spy, "recording").last().value("active").toBool(), false);
+        }
+        QFile::remove(tmp + "/omarchy-screenrecord-filename");
     }
     void screenshots() {
         SystemWatch watch(paths());

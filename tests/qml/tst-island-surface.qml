@@ -756,7 +756,7 @@ TestCase {
     }
     // A keyboard summon (Panel.qml's open()) expands the player view and
     // must focus its content so Escape collapses it immediately, exactly as
-    // a host toggle or hide would (code review H1).
+    // a host toggle or hide would.
     function test_escapeCollapsesPlayerViewAfterSummon() {
         var surface = createTemporaryObject(surfaceComponent, test);
         surface.explicitOpen = true;
@@ -769,7 +769,7 @@ TestCase {
     // Even when focus lands on the surface root itself rather than on the
     // loaded content, Escape must still collapse the island: the surface's
     // own handler is a fallback net for whichever view did not accept the
-    // key (code review H1).
+    // key.
     function test_escapeCollapsesWhenSurfaceItselfHasFocus() {
         var surface = createTemporaryObject(surfaceComponent, test);
         surface.explicitOpen = true;
@@ -784,8 +784,7 @@ TestCase {
     // onDropped actually invokes, rather than calling facade.shelfAdd from
     // the test the way tst-shelf.qml's test_dropAddsUrls does. A synthetic
     // JS object cannot be sent through the real `dropped` signal itself: it
-    // is strongly typed to QQuickDragEvent*, which QtTest cannot construct
-    // (code review L6).
+    // is strongly typed to QQuickDragEvent*, which QtTest cannot construct.
     function test_dropDelegatesToRealSurfaceHandler() {
         var surface = createTemporaryObject(surfaceComponent, test);
         verify(findChild(surface, "islandDropArea"));

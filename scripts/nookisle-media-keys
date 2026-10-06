@@ -35,7 +35,7 @@ write_readout_owner() {
   dir="$XDG_RUNTIME_DIR/nookisle"
   target="$dir/key-readout.$kind"
   temporary="$target.$token.tmp"
-  (umask 077; mkdir -p -m 700 "$dir" &&
+  (umask 077; mkdir -p "$dir" && chmod 700 "$dir" &&
     printf '%s %s %s %s\n' "$kind" "$token" "$owner" "$((now_ms + 2000))" >"$temporary" &&
     mv -f "$temporary" "$target")
 }
@@ -46,7 +46,7 @@ island_readout() {
   [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR ]] || return 1
   dir="$XDG_RUNTIME_DIR/nookisle"
   target="$dir/key-readout.$kind"
-  (umask 077; mkdir -p -m 700 "$dir") || return 1
+  (umask 077; mkdir -p "$dir" && chmod 700 "$dir") || return 1
   exec {lock_fd}>"$target.lock" || return 1
   flock -x "$lock_fd" || return 1
   if fallback_active "$kind" "$target"; then
@@ -129,17 +129,29 @@ volume_percent() {
 }
 
 if [[ $action == mute-toggle ]]; then
-  runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
-  debounce_file="$runtime_dir/omarchy-audio-output-volume-mute-toggle.last"
-  now=$(date +%s%3N)
-  last=0
-  [[ -r $debounce_file ]] && read -r last <"$debounce_file" || true
-  # Digits only: bash arithmetic would evaluate anything else as code.
-  [[ $last =~ ^[0-9]+$ ]] || last=0
-  if ((now - last < 250)); then
-    exit 0
+  # Skip debounce when runtime directory is missing or not a private user directory.
+  debounced=false
+  if [[ -n "${XDG_RUNTIME_DIR:-}" && "${XDG_RUNTIME_DIR}" == /* && -d "${XDG_RUNTIME_DIR}" ]]; then
+    dir_info=$(stat -c '%u %a' "${XDG_RUNTIME_DIR}" 2>/dev/null || true)
+    if [[ "$dir_info" == "$UID 700" ]]; then
+      debounced=true
+    fi
   fi
-  printf '%s\n' "$now" >"$debounce_file"
+  if $debounced; then
+    debounce_file="$XDG_RUNTIME_DIR/omarchy-audio-output-volume-mute-toggle.last"
+    now=$(date +%s%3N)
+    last=0
+    [[ -r $debounce_file && ! -L $debounce_file ]] && read -r last <"$debounce_file" || true
+    # Digits only: bash arithmetic would evaluate anything else as code.
+    [[ $last =~ ^[0-9]+$ ]] || last=0
+    if ((now - last < 250)); then
+      exit 0
+    fi
+    if tmp_file=$(mktemp "$XDG_RUNTIME_DIR/omarchy-audio-output-volume-mute-toggle.last.XXXXXX" 2>/dev/null); then
+      printf '%s\n' "$now" >"$tmp_file"
+      mv -T "$tmp_file" "$debounce_file"
+    fi
+  fi
   pactl set-sink-mute "$sink" toggle
 elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   direction=${BASH_REMATCH[1]}

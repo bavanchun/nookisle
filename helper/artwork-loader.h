@@ -3,6 +3,7 @@
 #include "image-limits.h"
 #include <QByteArray>
 #include <QElapsedTimer>
+#include <QFutureWatcher>
 #include <QHash>
 #include <QSize>
 #include <QObject>
@@ -57,9 +58,16 @@ private:
         qint64 used = 0, released = 0, bytes = 0;
         bool referenced = false;
     };
+    struct LocalReadResult {
+        enum class Status { Success, FileError, ReadError, MimeError };
+        Status status = Status::ReadError;
+        QByteArray bytes;
+        QByteArray mime;
+    };
     QHash<QByteArray, Entry> cache_;
     // The fetch child (see ArtworkFetch) and the decoder child.
     QPointer<QProcess> fetch_, decoder_;
+    QPointer<QFutureWatcher<LocalReadResult>> localWatcher_;
     QTimer deadline_, expiry_;
     QElapsedTimer clock_, elapsed_;
     QByteArray fetched_, cacheKey_, decoded_;
@@ -75,6 +83,7 @@ private:
     void fail(const QString &code);
     void stopTransport();
     void readLocal();
+    static LocalReadResult readLocalCoverFile(const QString &localPath);
     void publish(const QByteArray &bytes, const QByteArray &mime, bool local = false);
     void publishImage(const QByteArray &encoded, const QSize &size);
     bool ensureDirectory();

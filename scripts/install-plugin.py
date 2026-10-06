@@ -43,6 +43,7 @@ def binding_block(helper, created, added_newline):
     helper = shlex.quote(str(helper))
     lines = [START_MARKER.decode(),
              f"-- nookisle: created-file={str(created).lower()}; added-newline={str(added_newline).lower()}",
+             "-- Enables blur globally because Hyprland requires it for layer blur",
              'hl.config({ decoration = { blur = { enabled = true } } })',
              'hl.layer_rule({ match = { namespace = "^nookisle$" }, blur = true, ignore_alpha = 0.5, no_anim = true })']
     for key, _, _, _ in MEDIA_BINDINGS:
@@ -558,7 +559,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, nargs="?", help="complete CMake staging tree")
     parser.add_argument("--enable", action="store_true", help="enable via the existing Omarchy shell")
-    parser.add_argument("--bindings", action="store_true", help="install single-readout media bindings and blur rule")
+    parser.add_argument("--bindings", action="store_true", help="install single-readout media bindings and enable global compositor blur")
     parser.add_argument("--yes", action="store_true", help="confirm the bindings edit without a prompt")
     parser.add_argument("--centre", "--center", action="store_true",
                         help="make the island the bar's centre anchor, remembering the one it replaces")
@@ -602,7 +603,7 @@ def main():
             return
         add_bindings = args.bindings
         if add_bindings and not args.yes:
-            answer = input("Add Nookisle media-key bindings and compositor blur to bindings.lua? [y/N] ")
+            answer = input("Add Nookisle media-key bindings and enable global compositor blur in bindings.lua? [y/N] ")
             add_bindings = answer.strip().lower() in ("y", "yes")
         if args.source is not None:
             target, _ = install(args.source, args.config_root, args.enable)

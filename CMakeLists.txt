@@ -44,7 +44,7 @@ if(NOOKISLE_CALENDAR)
 endif()
 target_include_directories(island_core PUBLIC helper)
 # No Qt Gui: every image operation runs in the decoder child.
-target_link_libraries(island_core PUBLIC island_fetch Qt6::Core Qt6::DBus Qt6::Network)
+target_link_libraries(island_core PUBLIC island_fetch Qt6::Core Qt6::DBus Qt6::Network Qt6::Concurrent)
 target_compile_options(island_core PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(nookisle-helper helper/main.cpp)
 add_subdirectory(bridge)

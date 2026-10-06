@@ -112,7 +112,7 @@ Item {
     // The name of the screen the island currently lives on, written by
     // Panel.qml. Each screen's BarWidget compares this against its own
     // screen so only the bar under the island suppresses its centre-hover
-    // peek (code review L7).
+    // peek.
     property string islandScreenName: ""
     // Written by Panel.qml: true only while the island itself, not the legacy
     // panel, is on screen. viewVisible alone cannot say this, because it also
@@ -257,7 +257,7 @@ Item {
         if (clipboardPaste.running || clipboardCopy.running) { shelfNotice = "clipboard-busy"; return }
         // Only a URI already on the shelf may ever reach the clipboard: this
         // is the one guard shelfCopy owns itself, rather than trusting every
-        // caller to only ever pass a shelved item (code review M7).
+        // caller to only ever pass a shelved item.
         var normalized = Shelf.normalize(uri)
         if (!normalized || shelfItems.indexOf(normalized) < 0) return
         startClipboardCopy(Shelf.toUriList([normalized]), "text/uri-list")
@@ -298,7 +298,7 @@ Item {
     // Sent on stdin rather than as an argv element (see the clipboardCopy
     // Process below), so a shelved path never lingers readable in
     // `/proc/<pid>/cmdline` for as long as wl-copy keeps serving the
-    // selection (code review M7).
+    // selection.
     property string clipboardCopyPayload: ""
     property bool clipboardCopyStarted: false
     property bool clipboardCopyExited: false
@@ -2268,8 +2268,7 @@ Item {
             var added = 0
             if (links) {
                 // A cut-off last line still starts with "file:///" and would
-                // otherwise pass normalize() as a truncated, wrong path
-                // (code review L3).
+                // otherwise pass normalize() as a truncated, wrong path.
                 if (truncated) {
                     var lastBreak = Math.max(text.lastIndexOf("\n"), text.lastIndexOf("\r"))
                     text = lastBreak >= 0 ? text.slice(0, lastBreak) : ""
@@ -2291,8 +2290,8 @@ Item {
     }
     Process {
         id: clipboardCopy
-        // The payload travels on stdin, never on the command line (code
-        // review M7): written once the process has started, then the write
+        // The payload travels on stdin, never on the command line:
+        // written once the process has started, then the write
         // side is closed so wl-copy sees EOF and serves the selection.
         stdinEnabled: true
         onStarted: {
@@ -2312,8 +2311,7 @@ Item {
     }
     // A hung wl-paste/wl-copy (a frozen clipboard owner) must not disable
     // Paste/Copy forever: this single-shot, non-repeating timeout kills
-    // whichever process is still running past its bound and reports why
-    // (code review L2).
+    // whichever process is still running past its bound and reports why.
     Timer {
         id: clipboardTimeout
         interval: 5000

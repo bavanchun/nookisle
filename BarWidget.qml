@@ -36,12 +36,12 @@ Item {
     Accessible.name: islandMode ? "Nookisle" : ""
     // Written only on this widget's own transitions, the same contract the
     // first-party clock and weather panels follow for the shared flag
-    // (plan Decisions, "Host centre-hover peek").
+    // (host centre-hover peek contract).
     // On multiple monitors, every bar shares the one Service-level
     // `islandPointerActive`, so without a screen check every bar would
     // suppress its own centre peek whenever the island is hovered on any
     // screen. An unset `islandScreenName` (the coordinator has not resolved
-    // one yet) stays permissive rather than never suppressing (code review L7).
+    // one yet) stays permissive rather than never suppressing.
     readonly property string ownScreenName: root.Window.window && root.Window.window.screen ? root.Window.window.screen.name : ""
     readonly property bool suppressCenterPeek: islandMode && visible
         && coordinator && coordinator.islandPointerActive === true

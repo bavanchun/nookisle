@@ -46,8 +46,7 @@ Item {
 
     // Guarded on `sink.ready`: an unbound sink's `audio.volume` is a
     // placeholder default, and emitting it as the baseline would then read a
-    // later, real change as if it were the sink's actual starting level
-    // (code review M4, scenario B).
+    // later, real change as if it were the sink's actual starting level.
     function emit() {
         if (!root.sink || !root.sink.audio || root.sink.ready !== true) return
         root.sample(root.sinkId, root.sink.audio.volume, root.sink.audio.muted === true)

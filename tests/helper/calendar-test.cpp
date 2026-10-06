@@ -388,6 +388,15 @@ private slots:
         sources.configure(QJsonArray{privateSource}, true, 5);
         QTRY_VERIFY_WITH_TIMEOUT(!errorCode().isEmpty(), 9000);
         QVERIFY(errorCode() != "private-address");
+        for (const QString &host : {"100.64.0.1", "198.18.0.1", "224.0.0.1", "240.0.0.1", "[2002::1]", "[2001::1]", "[64:ff9b::1]"}) {
+            auto src = QJsonObject{{"kind", "ics-url"}, {"url", QString("https://%1:9999/feed.ics").arg(host)}};
+            sources.configure(QJsonArray{src}, true, 5);
+            QTRY_COMPARE_WITH_TIMEOUT(errorCode(), "private-address", 3000);
+        }
+        auto localAllowed = QJsonObject{{"kind", "ics-url"}, {"url", "https://100.64.0.1:9999/feed.ics"}, {"allowLocalNetwork", true}};
+        sources.configure(QJsonArray{localAllowed}, true, 5);
+        QTRY_VERIFY_WITH_TIMEOUT(!errorCode().isEmpty(), 9000);
+        QVERIFY(errorCode() != "private-address");
         sources.configure({}, false, 5);
     }
     void paginationFitsAsciiFrame() {
@@ -795,11 +804,84 @@ private slots:
         using Island::Calendar::isLocalAddress;
         for (const char *address : {"127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1",
                                     "169.254.10.10", "0.0.0.0", "::1", "::", "fe80::1", "fc00::1", "fd12:3456::1",
-                                    "::ffff:10.0.0.1", "::ffff:127.0.0.1"})
+                                    "::ffff:10.0.0.1", "::ffff:127.0.0.1",
+                                    "100.64.0.1", "100.127.255.254", "198.18.0.1", "198.19.255.254",
+                                    "224.0.0.1", "239.255.255.255", "240.0.0.1", "255.255.255.255",
+                                    "2002::1", "2001::1", "2001:db8::1", "64:ff9b::1",
+                                    "::ffff:100.64.0.1", "::ffff:198.18.0.1"})
             QVERIFY2(isLocalAddress(QHostAddress(QString::fromLatin1(address))), address);
         for (const char *address : {"8.8.8.8", "172.32.0.1", "172.15.255.255", "192.169.0.1", "1.1.1.1",
                                     "2001:4860:4860::8888", "::ffff:8.8.8.8"})
             QVERIFY2(!isLocalAddress(QHostAddress(QString::fromLatin1(address))), address);
+    }
+    void cookieIsolationBetweenSources() {
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        QByteArray received1, received2;
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            auto socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &received1, &received2] {
+                QByteArray req = socket->readAll();
+                if (!req.contains("\r\n\r\n")) return;
+                if (req.contains("GET /first.ics")) {
+                    received1 += req;
+                    socket->write("HTTP/1.1 200 OK\r\nSet-Cookie: session=secret123\r\nContent-Type: text/calendar\r\nConnection: close\r\n\r\n"
+                                  "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:1\nDTSTART:20260926T100000Z\nSUMMARY:One\nEND:VEVENT\nEND:VCALENDAR\n");
+                } else {
+                    received2 += req;
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/calendar\r\nConnection: close\r\n\r\n"
+                                  "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:2\nDTSTART:20260926T110000Z\nSUMMARY:Two\nEND:VEVENT\nEND:VCALENDAR\n");
+                }
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+
+        Island::Calendar::Sources sources;
+        QString url1 = QString("http://localhost:%1/first.ics").arg(server.serverPort());
+        QString url2 = QString("http://localhost:%1/second.ics").arg(server.serverPort());
+        auto from = QDateTime::fromString("2026-09-20T00:00:00Z", Qt::ISODate);
+        auto until = QDateTime::fromString("2026-10-01T00:00:00Z", Qt::ISODate);
+
+        sources.configure(QJsonArray{QJsonObject{{"kind", "ics-url"}, {"url", url1}, {"allowLocalNetwork", true}}}, true, 5);
+        QTRY_COMPARE_WITH_TIMEOUT(sources.page(from, until, 0).value("items").toArray().size(), 1, 3000);
+        QVERIFY(received1.contains("GET /first.ics"));
+
+        sources.configure(QJsonArray{QJsonObject{{"kind", "ics-url"}, {"url", url2}, {"allowLocalNetwork", true}}}, true, 5);
+        QTRY_COMPARE_WITH_TIMEOUT(sources.page(from, until, 0).value("items").toArray().size(), 1, 3000);
+        QVERIFY(received2.contains("GET /second.ics"));
+        QVERIFY(!received2.contains("session=secret123"));
+        QVERIFY(!received2.contains("Cookie:"));
+    }
+    void crossPortRedirectRefused() {
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            auto socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &server] {
+                QByteArray req = socket->readAll();
+                if (!req.contains("\r\n\r\n")) return;
+                int otherPort = server.serverPort() + 1;
+                QByteArray redirect = "HTTP/1.1 302 Found\r\nLocation: http://localhost:" + QByteArray::number(otherPort) + "/redirected.ics\r\nConnection: close\r\n\r\n";
+                socket->write(redirect);
+                socket->flush();
+                socket->disconnectFromHost();
+            });
+        });
+
+        Island::Calendar::Sources sources;
+        QString url = QString("http://localhost:%1/feed.ics").arg(server.serverPort());
+        auto definition = QJsonObject{{"kind", "ics-url"}, {"url", url}, {"allowLocalNetwork", true}};
+        sources.configure(QJsonArray{definition}, true, 5);
+
+        auto from = QDateTime::fromString("2026-09-20T00:00:00Z", Qt::ISODate);
+        auto until = QDateTime::fromString("2026-10-01T00:00:00Z", Qt::ISODate);
+        auto errorCode = [&] {
+            auto errors = sources.page(from, until, 0).value("errors").toArray();
+            return errors.isEmpty() ? QString() : errors.first().toObject().value("code").toString();
+        };
+
+        QTRY_COMPARE_WITH_TIMEOUT(errorCode(), "redirect-refused", 3000);
     }
     void completionRewritesUnfoldedTodos() {
         QTemporaryDir dir;

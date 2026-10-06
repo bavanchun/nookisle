@@ -1,6 +1,7 @@
 #include "artwork-loader.h"
 #include <QCryptographicHash>
 #include <QCoreApplication>
+#include <QtConcurrent>
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
@@ -58,6 +59,11 @@ void ArtworkLoader::stopTransport() {
             connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), process, &QObject::deleteLater);
             process->kill();
         }
+    }
+    if (localWatcher_) {
+        localWatcher_->disconnect(this);
+        localWatcher_->deleteLater();
+        localWatcher_ = nullptr;
     }
     fetched_.clear();
 }
@@ -143,6 +149,7 @@ void ArtworkLoader::request(const QUrl &url, const QString &generation) {
     if (local) {
         struct stat st {};
         if (::stat(QFile::encodeName(url_.toLocalFile()).constData(), &st)) { fail("art-local-read"); return; }
+        if (!S_ISREG(st.st_mode)) { fail("art-local-file"); return; }
         identity += '\n' + QByteArray::number(qint64(st.st_size)) + ':' + QByteArray::number(qint64(st.st_mtim.tv_sec))
             + '.' + QByteArray::number(qint64(st.st_mtim.tv_nsec));
     }
@@ -165,15 +172,28 @@ void ArtworkLoader::request(const QUrl &url, const QString &generation) {
     if (local) readLocal();
     else startFetch();
 }
-// A regular file only, bounded before any byte is read. Sniff its bytes
-// instead of trusting its extension, then decode in the isolated child.
-void ArtworkLoader::readLocal() {
-    const auto path = QFile::encodeName(url_.toLocalFile());
-    const int fd = ::open(path.constData(), O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY);
-    if (fd < 0) { fail("art-local-read"); return; }
+ArtworkLoader::LocalReadResult ArtworkLoader::readLocalCoverFile(const QString &localPath) {
+    LocalReadResult result;
+    const auto path = QFile::encodeName(localPath);
+    struct stat preStat {};
+    if (::stat(path.constData(), &preStat)) {
+        result.status = LocalReadResult::Status::ReadError;
+        return result;
+    }
+    if (!S_ISREG(preStat.st_mode) || preStat.st_size <= 0 || preStat.st_size > Island::ThumbnailInputLimit) {
+        result.status = LocalReadResult::Status::FileError;
+        return result;
+    }
+    const int fd = ::open(path.constData(), O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY | O_NOFOLLOW);
+    if (fd < 0) {
+        result.status = LocalReadResult::Status::ReadError;
+        return result;
+    }
     struct stat st {};
-    if (::fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size <= 0 || st.st_size > ThumbnailInputLimit) {
-        ::close(fd); fail("art-local-file"); return;
+    if (::fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size <= 0 || st.st_size > Island::ThumbnailInputLimit) {
+        ::close(fd);
+        result.status = LocalReadResult::Status::FileError;
+        return result;
     }
     QByteArray bytes(qsizetype(st.st_size), Qt::Uninitialized);
     qsizetype done = 0;
@@ -183,11 +203,50 @@ void ArtworkLoader::readLocal() {
         done += count;
     }
     ::close(fd);
-    if (done != bytes.size()) { fail("art-local-read"); return; }
+    if (done != bytes.size()) {
+        result.status = LocalReadResult::Status::ReadError;
+        return result;
+    }
     const QByteArray mime = bytes.startsWith(QByteArray::fromHex("89504e470d0a1a0a")) ? "image/png"
         : bytes.startsWith(QByteArray::fromHex("ffd8ff")) ? "image/jpeg" : QByteArray();
-    if (mime.isEmpty()) { fail("art-mime"); return; }
-    publish(bytes, mime, true);
+    if (mime.isEmpty()) {
+        result.status = LocalReadResult::Status::MimeError;
+        return result;
+    }
+    result.status = LocalReadResult::Status::Success;
+    result.bytes = std::move(bytes);
+    result.mime = mime;
+    return result;
+}
+// A regular file only, bounded before any byte is read. Sniff its bytes
+// in a worker thread instead of blocking the main thread, then decode in the isolated child.
+void ArtworkLoader::readLocal() {
+    stopTransport();
+    const auto path = url_.toLocalFile();
+    const auto currentSerial = serial_;
+    auto *watcher = new QFutureWatcher<LocalReadResult>(this);
+    localWatcher_ = watcher;
+    connect(watcher, &QFutureWatcher<LocalReadResult>::finished, this, [this, watcher, currentSerial] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+        if (localWatcher_ == watcher) localWatcher_ = nullptr;
+        if (serial_ != currentSerial || !busy()) return;
+        switch (result.status) {
+        case LocalReadResult::Status::FileError:
+            fail("art-local-file");
+            break;
+        case LocalReadResult::Status::ReadError:
+            fail("art-local-read");
+            break;
+        case LocalReadResult::Status::MimeError:
+            fail("art-mime");
+            break;
+        case LocalReadResult::Status::Success:
+            publish(result.bytes, result.mime, true);
+            break;
+        }
+    });
+    watcher->setFuture(QtConcurrent::run(&ArtworkLoader::readLocalCoverFile, path));
 }
 namespace {
 QString artworkSession;
