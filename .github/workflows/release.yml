@@ -155,7 +155,9 @@ jobs:
           else
             find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
             cp -a ../out/* .
+            chmod 0755 libexec/*
             git add -A
+            git update-index --chmod=+x libexec/*
 
             non_executable=$(git ls-files -s libexec | grep -v '^100755' || true)
             if [ -n "${non_executable}" ]; then
