@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.bavanchun.nookisle",
+  "name": "Nookisle",
+  "version": "1.0.0",
+  "build": "70bad1d252075e7f242e7c1819b4210f4e6ec41d",
+  "repository": "https://github.com/bavanchun/nookisle",
+  "license": "MIT",
+  "author": "bavanchun",
+  "description": "A source-bound floating music controller with optional exact-document Chrome integration.",
+  "kinds": ["bar-widget", "panel", "service"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "panel": "Panel.qml",
+    "service": "Service.qml"
+  },
+  "barWidget": {"displayName": "Nookisle", "category": "Media", "allowMultiple": false}
+}
