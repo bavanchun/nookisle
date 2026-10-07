@@ -68,7 +68,7 @@ Enabling the HUD may produce duplicate on-screen displays alongside Omarchy's de
 
 ### 4. Chrome Extension & Native Host
 For exact-document tab control in Google Chrome or Chromium, register the native messaging host:
-See the [bridge documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/bridge/README.md).
+See the [bridge documentation](https://github.com/bavanchun/nookisle/blob/v1.0.4/bridge/README.md).
 - **To undo:** Remove the extension in the browser, delete the native messaging host manifest from `~/.config/google-chrome/NativeMessagingHosts/io.github.bavanchun.nookisle.json` (or `~/.config/chromium/NativeMessagingHosts/io.github.bavanchun.nookisle.json` for Chromium), and delete `~/.config/nookisle/native-host.json`.
 
 ## Remove
@@ -106,16 +106,16 @@ Then undo anything you set up by hand:
 
 ## Bundled binaries and their source
 
-The pre-compiled plugin bundle contains binaries in `libexec/`. Each binary's source code is available at the pinned `v1.0.3` tag:
+The pre-compiled plugin bundle contains binaries in `libexec/`. Each binary's source code is available at the pinned `v1.0.4` tag:
 
 | Binary | Function | When it runs | Source |
 |---|---|---|---|
-| `libexec/nookisle-helper` | Coordinates D-Bus session communication, MPRIS players, backlight, system events, and calendar sync | Runs continuously while the plugin service is loaded in the shell | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/helper) |
-| `libexec/nookisle-artwork-decoder` | Isolated sandbox without network or D-Bus access that sanitizes and re-encodes image files to 256 px | Spawned on demand by the helper to decode local or downloaded artwork | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/helper) |
-| `libexec/nookisle-artwork-fetch` | Fetches opt-in remote album artwork over HTTPS; in `--lyrics` mode, queries LRCLIB for synced lyrics with streaming 256 KiB cap and no decompression | Spawned on demand when remote artwork or synced lyrics are enabled | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/helper) |
-| `libexec/nookisle-spectrum` | Reads PipeWire audio monitor levels to compute 12-band frequency amplitudes; no audio samples leave the process | Runs while audio is actively playing and the visualizer is desired and visible | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/helper) |
-| `libexec/nookisle-media-keys` | Evaluates whether the island HUD or desktop OSD handles volume and brightness changes | Executed on media hotkey presses when bound in `bindings.lua` | [`scripts/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/scripts) |
-| `libexec/nookisle-native-host` | Connects the optional Chrome/Chromium extension to the helper over a private local UNIX domain socket | Started by Chrome/Chromium when the extension connects | [`bridge/`](https://github.com/bavanchun/nookisle/tree/v1.0.3/bridge) |
+| `libexec/nookisle-helper` | Coordinates D-Bus session communication, MPRIS players, backlight, system events, and calendar sync | Runs continuously while the plugin service is loaded in the shell | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/helper) |
+| `libexec/nookisle-artwork-decoder` | Isolated sandbox without network or D-Bus access that sanitizes and re-encodes image files to 256 px | Spawned on demand by the helper to decode local or downloaded artwork | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/helper) |
+| `libexec/nookisle-artwork-fetch` | Fetches opt-in remote album artwork over HTTPS; in `--lyrics` mode, queries LRCLIB for synced lyrics with streaming 256 KiB cap and no decompression | Spawned on demand when remote artwork or synced lyrics are enabled | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/helper) |
+| `libexec/nookisle-spectrum` | Reads PipeWire audio monitor levels to compute 12-band frequency amplitudes; no audio samples leave the process | Runs while audio is actively playing and the visualizer is desired and visible | [`helper/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/helper) |
+| `libexec/nookisle-media-keys` | Evaluates whether the island HUD or desktop OSD handles volume and brightness changes | Executed on media hotkey presses when bound in `bindings.lua` | [`scripts/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/scripts) |
+| `libexec/nookisle-native-host` | Connects the optional Chrome/Chromium extension to the helper over a private local UNIX domain socket | Started by Chrome/Chromium when the extension connects | [`bridge/`](https://github.com/bavanchun/nookisle/tree/v1.0.4/bridge) |
 
 ## Privacy and permissions
 
@@ -143,7 +143,7 @@ Updates contain pre-compiled binaries. You can verify the checksums and GitHub b
 ```sh
 cd ~/.config/omarchy/plugins/io.github.bavanchun.nookisle
 sha256sum -c SHA256SUMS
-gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
+gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.4 --deny-self-hosted-runners
 ```
 
 ## Build provenance
@@ -152,16 +152,16 @@ Release builds and distribution packages are generated automatically by GitHub A
 - **Signer workflow:** [release.yml](https://github.com/bavanchun/nookisle/actions/workflows/release.yml)
 - **Attestation verification:** Verify any downloaded release artifact or binary with the GitHub CLI:
   ```sh
-  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
+  gh attestation verify <file> --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.4 --deny-self-hosted-runners
   ```
 - **SHA256SUMS header:** Shipped packages contain an attested `SHA256SUMS` (GitHub build provenance) file with the header `# nookisle <tag> <source sha>` that binds the release tag to the exact commit SHA on `main`.
-- **Reproducible rebuild:** The release can be rebuilt in the pinned container using [scripts/rebuild-dist.sh](https://github.com/bavanchun/nookisle/blob/v1.0.3/scripts/rebuild-dist.sh).
+- **Reproducible rebuild:** The release can be rebuilt in the pinned container using [scripts/rebuild-dist.sh](https://github.com/bavanchun/nookisle/blob/v1.0.4/scripts/rebuild-dist.sh).
 
 ## Development
 
 `dist` (the default branch) is the CI-built tree that `omarchy plugin add` installs; the source is on `main`. Open pull requests against `main`.
 
-For building from source, running tests, and developing Nookisle, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
+For building from source, running tests, and developing Nookisle, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/development.md).
 
 ## Security
 

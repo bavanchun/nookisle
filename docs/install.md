@@ -42,7 +42,7 @@ Updates contain pre-built binaries. Before restarting, you can verify package ch
 ```sh
 cd ~/.config/omarchy/plugins/io.github.bavanchun.nookisle
 sha256sum -c SHA256SUMS
-gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
+gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.4 --deny-self-hosted-runners
 ```
 
 ## Removal
@@ -68,7 +68,7 @@ Then undo anything you set up by hand:
 
 ## Build from source
 
-To build, test, and develop Nookisle from source, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
+To build, test, and develop Nookisle from source, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/development.md).
 
 ## Configure calendar sources
 
@@ -199,7 +199,7 @@ island, with `omarchy-shell nookisle hudReadout <kind> <device>`, whether
 the island will draw that readout. A prompt `ok` gives the readout to the island. Timeout, `unavailable`, and failure give
 it to Omarchy; the helper records that decision before acting so a later
 island source sample cannot duplicate the fallback OSD. The ownership record
-is described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md#media-key-readout-ownership).
+is described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md#media-key-readout-ownership).
 
 Without the bindings block, Omarchy's own OSD handles every one of these keys.
 Media playback and source-switching keys remain on their default bindings.
@@ -257,7 +257,7 @@ fetched from the web (Spotify's, and every browser source's) need
 `remoteArtwork`, which stays off by default; without it such a source shows a
 music glyph and the island keeps the theme accent.
 
-Browser exact-document control requires the [Chrome extension and native bridge](https://github.com/bavanchun/nookisle/blob/v1.0.3/bridge/README.md); MPRIS-only Chrome
+Browser exact-document control requires the [Chrome extension and native bridge](https://github.com/bavanchun/nookisle/blob/v1.0.4/bridge/README.md); MPRIS-only Chrome
 entries remain explicitly browser-scoped.
 
 ### Optional compositor blur and layer animation

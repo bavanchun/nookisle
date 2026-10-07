@@ -11,7 +11,7 @@ settings window and a field in `status()`. Nookisle always uses the island. No s
 | Key | Default | Governs |
 |---|---|---|
 | `hud` | off | level readout in the island for volume and brightness changes |
-| `visualizer` | on | live spectrum bars in the closed notch and the track peek (for its CPU cost while playing, see [performance](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/performance.md#island-workloads)) |
+| `visualizer` | on | live spectrum bars in the closed notch and the track peek (for its CPU cost while playing, see [performance](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/performance.md#island-workloads)) |
 | `peek` | off | the short track peek when the playing track changes |
 | `power` | on | "Battery and charger": reading the battery through UPower at all. It gates charger changes and low (20 %) or critical (10 %) battery warnings, as a banner or a peek (`powerStyle`), and the header gauge; off, every other Battery row is dimmed |
 | `tint` | on | tinting the bars, sliders, hairline and glow with the artwork's colour |

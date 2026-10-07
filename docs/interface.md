@@ -9,7 +9,7 @@ battery, lyrics, the shelf and the calendar. When the host exposes a lock
 provider, the island shows only once that provider reports the session
 unlocked. Current Omarchy hosts hide the provider from plugins, so the plugin
 then relies on the compositor's session lock to keep it off screen (see
-[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints)).
+[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints)).
 
 The island stays at the screen top with a hidden, bottom, side or vertical
 bar. `autoShow:false` hides it until explicitly summoned; the fullscreen, lock
@@ -68,7 +68,7 @@ then leaves Lyrics for Home, then collapses the island.
 [IslandSurface.qml](../components/IslandSurface.qml) in the same fixed-size Overlay window anchored to the top edge only; the
 compositor centres it on the output; the top-bar spacer reserves
 the matching centre width (see "Geometry and appearance" above and
-[architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints)). The island remains available independently of the host bar's position or
+[architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints)). The island remains available independently of the host bar's position or
 visibility. The host's open state
 (`isPluginOpen`, which `shell.qml` reads as `loader.item.opened`) mirrors the
 island's `expanded` property for both a hover-driven and a keyboard-summoned
@@ -148,7 +148,7 @@ Locking the screen cancels it only when the plugin can see the lock provider.
 Current Omarchy hosts hide that provider from third-party plugins; the timer
 then stays available and keeps running across a lock, and the settings row says
 so. This is deliberate, not a bug to fix: see
-[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints).
+[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints).
 
 Settings scroll when their content outgrows the card, with the scroll bar always
 drawn while there is more below. Tab focus scrolls the focused row into view.
@@ -513,7 +513,7 @@ the island after the `summonAutoClose` setting (3000ms by default, 0–10000,
 or focus moves into a view first. The IPC verb is unchanged; the payload key
 is additive (see [install](install.md#summon-with-auto-close)).
 A summon focuses the surface root (`IslandSurface.focusKeys()`), where the
-shortcut keys live (see [gestures and keys](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md#gestures-and-keys)), and Return steps into the
+shortcut keys live (see [gestures and keys](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md#gestures-and-keys)), and Return steps into the
 view (`IslandSurface.focusContent()`). Keys bubble from the focused control up
 through the view to the root, whose Escape closes Home's settings or source
 overlay first, then leaves Lyrics for Home, then collapses the island.
@@ -772,9 +772,9 @@ can show them, and each bar's centre peek is suppressed by the visible island
 the pointer is on (else an open one). The settings window offers `preferredDisplay` as
 Automatic plus the connected screens, and keeps a stored screen that is not
 connected, marked "(not connected)". Every bar's spacer stays as it is. See
-[architecture](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints) for the windows
+[architecture](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints) for the windows
 behind `all`.
 
 ## Gestures, keys and verification
 
-See the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md) for media-key readout ownership, pointer and keyboard gestures, and the verification suites.
+See the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md) for media-key readout ownership, pointer and keyboard gestures, and the verification suites.

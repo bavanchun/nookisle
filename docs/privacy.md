@@ -58,8 +58,8 @@ on the session bus runs as you and could read the same file itself; the
 island only draws it as an image and sends nothing anywhere. With `tint` on, the island reads
 the colours of that same local file in memory; no colour, file or URL leaves
 the machine for it. Exact policies and adversarial
-checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.3/helper/artwork-loader.cpp) and
-[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.3/tests/helper/artwork-loader-test.cpp).
+checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.4/helper/artwork-loader.cpp) and
+[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.4/tests/helper/artwork-loader-test.cpp).
 
 ## Level readout
 
@@ -384,7 +384,7 @@ The status endpoint reports counts, booleans, setting values and diagnostic
 codes, not song titles, page URLs or a tab history. The media-key verbs return only `ok`,
 `busy` or `unavailable`. They do give any same-user process a way to play,
 pause or skip an extension-controlled browser document, which no other session
-mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#selection-and-view-subscription)
+mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#selection-and-view-subscription)
 for why that is accepted. Local debug/test artifacts should be
 reviewed before sharing; system process inventories and screenshots can still
 include personal information outside the plugin's own diagnostics.
