@@ -354,8 +354,13 @@ tray, 16px, full ink when selected and secondary ink otherwise); Shelf adds its
 item count as a small badge once the shelf holds something, and never shows a
 zero. A 26px capsule, a 14% wash of the ink, slides under the selected tab by
 animating its x and width over 350ms (`tabDuration`, `OutCubic`; none under
-reduced motion). Each tab's accessible name is its word, with the count for
-Shelf ("Shelf, 2 items"). The
+reduced motion). The incoming view eases in alongside it: over 220ms
+(`viewEnterDuration`, `OutCubic`) it fades from 0 and slides 10px in from the
+side its tab lies on (6px up from below for Lyrics and Timers), while the
+outgoing view is gone at once, so two views never show together. Only a switch
+on the open, settled island enters; opening, collapsing, Escape to Home and
+reduced motion show no entrance. Each tab's accessible name is its word, with
+the count for Shelf ("Shelf, 2 items"). The
 tabs show while `alwaysShowTabs` is on (the default) or the shelf holds
 files. Turning on Remember last tab also turns on Always show tabs, so a
 remembered empty Shelf remains reachable. The centre is a span exactly as wide as the closed notch's

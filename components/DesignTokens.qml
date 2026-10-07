@@ -164,6 +164,12 @@ QtObject {
     readonly property int tintDuration: reducedMotion ? 0 : 400
     // The header's tab capsule slides to the selected tab.
     readonly property int tabDuration: reducedMotion ? 0 : 350
+    // A tab switch eases the incoming view in over 220 ms (about 60 % of the
+    // capsule's glide), from 10 px to the side between Home and Shelf, or
+    // from 6 px below for the sub-views.
+    readonly property int viewEnterDuration: reducedMotion ? 0 : 220
+    readonly property int viewEnterShift: 10
+    readonly property int viewEnterRise: 6
     readonly property int lyricLineDuration: reducedMotion ? 0 : 180
     readonly property int lyricCurrentSize: titleSize + 2
     // How long Home waits before it says a lyrics lookup is running, so a

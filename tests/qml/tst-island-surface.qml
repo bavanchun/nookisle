@@ -1997,6 +1997,70 @@ TestCase {
     // The mirror's camera waits for the open spring to settle, stops on
     // another tab, and the header toggle hides the mirror for the session,
     // across a close and reopen.
+    // A tab switch on the open island hands the content over: the incoming
+    // view eases in from the side the tab lies on, and the outgoing one is
+    // gone at once, so two views never show together.
+    function test_viewSwitchEntersFromTheTabsSide() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.expandTo("home");
+        tryCompare(surface, "openSettled", true, design.openDuration + 300);
+        var shelf = findChild(surface, "shelfViewLoader"), home = findChild(surface, "homeViewLoader");
+        compare(shelf.opacity, 1);
+        surface.view = "shelf";
+        verify(shelf.opacity < 1, "the incoming view starts faded");
+        verify(shelf.transform[0].x > 0, "and offset towards the tab it came from");
+        verify(!home.visible, "the outgoing view is gone at once");
+        grabImage(surface).save(Qt.resolvedUrl("../../build/ui-preview/island-view-enter.png").toString().slice(7));
+        tryCompare(shelf, "opacity", 1, design.viewEnterDuration + 200);
+        compare(shelf.transform[0].x, 0);
+        surface.view = "home";
+        verify(home.opacity < 1);
+        verify(home.transform[0].x < 0, "back to Home enters from the left");
+        tryCompare(home, "opacity", 1, design.viewEnterDuration + 200);
+    }
+    function test_subViewEntersFromBelow() {
+        design.reducedMotion = false;
+        facade.lyrics = true;
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.lyricsSource = lyricsFixture;
+        surface.expandTo("home");
+        tryCompare(surface, "openSettled", true, design.openDuration + 300);
+        surface.view = "lyrics";
+        var lyrics = findChild(surface, "lyricsViewLoader");
+        verify(lyrics.opacity < 1);
+        compare(lyrics.transform[0].x, 0);
+        verify(lyrics.transform[0].y > 0, "Lyrics rises into place");
+        tryCompare(lyrics, "opacity", 1, design.viewEnterDuration + 200);
+    }
+    function test_viewSwitchIsInstantUnderReducedMotion() {
+        design.reducedMotion = true;
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.expandTo("home");
+        tryCompare(surface, "openSettled", true, 1000);
+        surface.view = "shelf";
+        compare(findChild(surface, "shelfViewLoader").opacity, 1);
+    }
+    // Opening straight into Shelf (a file drag) is the open morph's job.
+    function test_openingIntoShelfSetsNoEntrance() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.expandTo("shelf");
+        compare(surface.viewEnter, 1);
+        compare(findChild(surface, "shelfViewLoader").opacity, 1);
+        tryCompare(surface, "openSettled", true, design.openDuration + 300);
+        compare(findChild(surface, "shelfViewLoader").opacity, 1);
+    }
+    function test_collapseEndsAnEntranceAtOnce() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.expandTo("home");
+        tryCompare(surface, "openSettled", true, design.openDuration + 300);
+        surface.view = "shelf";
+        verify(surface.viewEnter < 1);
+        surface.collapse(true);
+        compare(surface.viewEnter, 1);
+    }
     function test_mirrorWaitsForTheSettledOpenAndTheHeaderToggle() {
         design.reducedMotion = false;
         cameraCreations = 0;

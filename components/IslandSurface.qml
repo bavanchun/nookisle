@@ -112,8 +112,44 @@ Item {
             return timersAvailable ? "timers" : "home";
         return views.indexOf(name) >= 0 ? name : "home";
     }
-    onViewChanged: if (resolveView(view) !== view)
-        view = resolveView(view)
+    // The incoming view's entrance: one progress and the offset it starts
+    // from, read by the four view loaders. 1 means at rest.
+    property real viewEnter: 1
+    property real viewShiftX: 0
+    property real viewShiftY: 0
+    // The view before the last change; set only by onViewChanged.
+    property string previousView: "home"
+    function enterView(from, to) {
+        // Only a switch on the open, settled island enters: the open morph
+        // already brings in whatever it opens on, and a collapse resets.
+        if (!tokens || tokens.viewEnterDuration <= 0 || !openSettled || from === to) {
+            viewEnterAnim.stop();
+            viewEnter = 1;
+            return;
+        }
+        var sub = from === "lyrics" || from === "timers" || to === "lyrics" || to === "timers";
+        viewShiftX = sub ? 0 : (views.indexOf(to) > views.indexOf(from) ? 1 : -1) * tokens.viewEnterShift;
+        viewShiftY = sub ? tokens.viewEnterRise : 0;
+        viewEnterAnim.restart();
+    }
+    NumberAnimation {
+        id: viewEnterAnim
+        target: root
+        property: "viewEnter"
+        from: 0
+        to: 1
+        duration: root.tokens ? root.tokens.viewEnterDuration : 220
+        easing.type: Easing.OutCubic
+    }
+    onViewChanged: {
+        if (resolveView(view) !== view) {
+            view = resolveView(view);
+            return;
+        }
+        var from = previousView;
+        previousView = view;
+        enterView(from, view);
+    }
     onViewsChanged: if (resolveView(view) !== view)
         view = resolveView(view)
     onLyricsAvailableChanged: if (!lyricsAvailable && view === "lyrics")
@@ -891,6 +927,8 @@ Item {
             batteryPopoverOpen = false;
             header.overflowMenu.close();
             releaseKeys();
+            viewEnterAnim.stop();
+            viewEnter = 1;
         }
     }
     Component.onCompleted: {
@@ -1403,6 +1441,11 @@ Item {
                 Loader {
                     id: homeLoader
                     objectName: "homeViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     x: root.tokens ? root.tokens.medium : 12
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width - 2 * x
@@ -1431,6 +1474,11 @@ Item {
                 Loader {
                     id: shelfViewLoader
                     objectName: "shelfViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     x: root.tokens ? root.tokens.medium : 12
                     width: parent.width - 2 * x
@@ -1452,6 +1500,11 @@ Item {
                 Loader {
                     id: lyricsViewLoader
                     objectName: "lyricsViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width
                     // The open body under the switcher, at rest: the view
@@ -1467,6 +1520,11 @@ Item {
                 Loader {
                     id: timersViewLoader
                     objectName: "timersViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width
                     height: root.restHeight - y
