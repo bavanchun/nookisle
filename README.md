@@ -159,6 +159,8 @@ Release builds and distribution packages are generated automatically by GitHub A
 
 ## Development
 
+`dist` (the default branch) is the CI-built tree that `omarchy plugin add` installs; the source is on `main`. Open pull requests against `main`.
+
 For building from source, running tests, and developing Nookisle, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
 
 ## Security
