@@ -22,8 +22,7 @@ started it: a reconfiguration stops every later step of an older load (network
 callbacks, parse results and CalDAV's event-then-reminder continuation), so a
 source that keeps its ID never receives the old load's data.
 [CalendarSource.qml](../components/CalendarSource.qml)
-is the QML request owner. The Service loads it while `showCalendar`,
-island mode and UI admission hold, retaining configured sources while the
+is the QML request owner. The Service loads it while `showCalendar` and UI admission hold, retaining configured sources while the
 island hides. The Home calendar
 panel consumes its items, and the settings window hosts the source editor.
 
@@ -116,8 +115,8 @@ It captures the default sink's monitor through PipeWire and prints one line of
 silent. The binary allows up to 30 frames a second; the Service starts it with
 `--fps 15` (`spectrumFps`), because each line costs the shell one repaint and
 at 30 or 20 lines that exceeded the collapsed-playing CPU budget. The Service starts it only while
-`visualizer`, island mode, `islandShowing` (written by `Panel.qml`: the island
-itself, not the legacy panel, is on screen), UI admission and a `Playing`
+`visualizer`, `islandShowing` (written by `Panel.qml` while an island is
+on screen), UI admission and a `Playing`
 selected source all hold, and stops it as soon as any of them drops. A
 `SplitParser` hands each line to `onSpectrumLine`, which drops anything but
 exactly 12 integers in range and assigns `spectrumLevels` only while
@@ -174,8 +173,7 @@ The helper remains the final capability and unique-owner authority.
 
 Visible, admitted, playing views subscribe to monotonic progress samples:
 expanded views at 250ms, and the collapsed island at 1000ms for its progress
-hairline (a 240px line over a whole track moves about a pixel a second). The
-collapsed legacy panel still sends no subscription. The UI renders samples
+hairline (a 240px line over a whole track moves about a pixel a second). The UI renders samples
 without a second playback clock.
 Subscribe/refresh acknowledgements release bounded IPC write credits. Controls
 require an acknowledged gate; error presentation only requires safe unlocked
@@ -195,7 +193,7 @@ before any replacement write; a failed backup refuses that write.
 for every schema key, `settings` and `onboarding` to open those windows, and
 `keyboardBacklightChanged` and the read-only `hudReadout(kind, device)` for the
 media-key bindings. It never returns titles,
-URLs, or listening history. Status adds `island`, `hud`, `visualizer`, `peek`,
+URLs, or listening history. Status adds `hud`, `visualizer`, `peek`,
 `tint`, `power`, `lyrics`, `shelfCount`, `brightnessHud`, `spectrum` (`off`,
 `running` or `unavailable`) and the resolved typed `settings` (without calendar
 source definitions); the count is the only shelf fact it reports, and
@@ -252,46 +250,40 @@ installation must not patch vendor shell code. That separate repair does not
 establish compatibility with other host versions or lock services. Package
 installation and live acceptance are separate from isolated host-contract tests.
 
-The legacy panel uses a tinted fallback and the island is solid black; neither
-needs backdrop blur. The plugin never enables compositor blur by itself; only
+The island is solid black and needs no backdrop blur. The plugin never enables compositor blur by itself; only
 the installer's opt-in bindings block does, and it says so before editing
 ([install](install.md#one-on-screen-display-for-media-keys)). Real compositor placement,
 input regions, focus, output changes, and performance need session evidence
 before release. No RAM, CPU, frame-time, or universal Linux compatibility claim
 follows from compiling or packaging the project.
 
-Only the current mode's tree exists. The legacy panel (`IslandContent`) and the
-island surface (`IslandSurface`, with its Home, camera and shelf) each sit behind
-a Loader in Panel.qml that is active only in its own mode, and a live switch
-unloads the other tree, releasing its camera and focus. In legacy mode Panel
-reads `root.surface`, an inert stand-in (collapsed, not interactive, the same
-resolved settings), and extra-screen islands exist only in island mode. Inside the island,
+[IslandSurface.qml](../components/IslandSurface.qml) is the only window content,
+behind an always-active Loader in Panel.qml. Before that Loader has an item,
+Panel reads a nonvisual initialization object with resolved settings.
 Home (player, calendar and camera tile) is built the first time the island is
 hovered, opened or summoned and then kept, so a closed island that was never
 opened holds none of it; the hover dwell covers building it before the open.
 
-In island mode the window moves to `WlrLayer.Overlay` (`exclusionMode:
-Ignore`, `margins.top: 0`), instead of the legacy panel's `WlrLayer.Top`. The
+The window uses `WlrLayer.Overlay` (`exclusionMode: Ignore`, `margins.top: 0`). The
 host bar itself renders on `WlrLayer.Top` and is recreated on screen changes,
 so stacking within that one layer depends on map order; `Overlay` stacks
 above it deterministically regardless of map order, which a live
 native probe verified. The window keeps only its top anchor, so the layer-shell
 compositor centres it horizontally on the output; there is no per-screen slot
-registry and no `margins.left` arithmetic for island mode. This placement is
+registry and no `margins.left` arithmetic. This placement is
 correct only when [BarWidget.qml](../BarWidget.qml)'s spacer is the bar's own
 centre anchor on a full-width top bar (`centerAnchor:
 "io.github.bavanchun.nookisle"`), because that is what makes the bar's centre equal the
 screen's centre; a differently configured bar keeps the pill screen-centred
-while the spacer reserves the wrong place, and `island:false` is the stated
-remedy. [Panel.qml](../Panel.qml) picks the island's screen with
+while a misplaced spacer reserves the wrong place. Configure the centre anchor
+or move flanking modules to leave the notch clear; other bar positions have no
+spacer, and a hidden bar does not change the island UI. [Panel.qml](../Panel.qml) picks the island's screen with
 [Displays.js](../qml/Displays.js) for the `displayMode` setting. In `follow`,
 the default, that is one screen at a time - `Hyprland.focusedMonitor`,
 falling back to the first screen; in `fixed`, `preferredDisplay` while it is
 connected, else as `follow`. It moves only while the island is collapsed,
 deferring a focus or output change until the next collapse so the surface
-never jumps under the pointer mid-interaction. This differs from the legacy
-panel's screen binding, which always tracks the current target and forces a
-collapse when it changes.
+never jumps under the pointer mid-interaction.
 
 In `all`, Panel's own window is the primary: it stays on `preferredDisplay`
 (or the first screen) whatever has focus, takes the keyboard summon, and

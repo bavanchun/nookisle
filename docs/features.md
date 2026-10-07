@@ -32,7 +32,7 @@ level, and the source re-reads the LED's sysfs level and emits one `keyboard`
 event. The verb returns `ok`, or `unavailable` when the HUD is off or no
 keyboard LED was found. Before acting, the bindings' helper asks
 `hudReadout(kind, device)` whether the island will draw the key's readout. It
-answers `ok` only with `hud` and `island` on, the island on screen, its
+answers `ok` only with `hud` on, the island on screen, its
 readout not suppressed (Panel publishes `HudModel.suppressed`, which covers
 fullscreen and an open island with `showOpenNotchHud` off) and the plugin
 admitted; for `keyboard` the source must have found an LED, and for
@@ -108,14 +108,13 @@ starts it.
 fullscreen client should hide the island. The selected endpoint supplies its
 MPRIS `DesktopEntry` or, for a Chrome document, the browser class. The pure
 policy requires an exact class match after case normalization and removal of
-the optional `.desktop` suffix. In island mode, `Panel.qml` applies it to the
+the optional `.desktop` suffix. `Panel.qml` applies it to the
 fullscreen client on the island's own monitor: it reads that client's class
 from `lastIpcObject` of the active workspace's toplevels, asks Hyprland to
 refresh them whenever the workspace or its fullscreen state changes, and
 re-evaluates when the selected source changes. The result drives everything
 that already read "fullscreen": the island's visibility, its interactivity and
-the HUD and peek suppression, and an explicit open still overrides it. The
-legacy panel keeps hiding over any fullscreen workspace.
+the HUD and peek suppression, and an explicit open still overrides it.
 
 ## Idle notch
 
@@ -207,7 +206,7 @@ card, and `Panel.qml` feeds the model and passes its state to
   peek. [PowerSource.qml](../components/PowerSource.qml), the only file that
   imports `Quickshell.Services.UPower`, reports the display device's
   `ready`, `isLaptopBattery`, `isPresent`, `percentage` (0..1) and
-  `UPower.onBattery`; `Panel.qml` loads it only in island mode with `power`
+  `UPower.onBattery`; `Panel.qml` loads it only with `power`
   on, and resets the power baseline on every load.
 - **Device peek** (`deviceEvents`, `audio` by default). A Bluetooth device
   connecting blooms a pill-high 300px row for 2.5s (`devicePeekDuration`):
@@ -290,7 +289,7 @@ optional percentage, and [BatteryPopover.qml](../components/BatteryPopover.qml)
 shows the percentage, state, time estimate, health and power-saver, with a
 "Power settings" button only when `powerCommand` is set.
 
-In island mode, `Panel.qml` feeds each PowerSource sample to `BatteryModel`
+`Panel.qml` feeds each PowerSource sample to `BatteryModel`
 (and to `PeekModel`). The open header shows the gauge in its battery slot
 while a battery is present, `power` is on (it loads the reader) and
 `showBatteryIndicator` is on; a tap opens the
@@ -349,13 +348,13 @@ application names ([qml/Privacy.js](../qml/Privacy.js)). Apps that open a
 camera without PipeWire, as browsers usually do, are found by the helper's
 camera watch (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)), which the
 Service runs only while the indicators are on and the island is allowed on
-screen. `Panel.qml` loads the source only in island mode with the setting on.
+screen. `Panel.qml` loads the source only with the setting on.
 
 ## Timers
 
 With `timers` on (the default), the island's timers are Omarchy's reminders:
 systemd user timers made by `omarchy-reminder <minutes> [label]`. They outlive
-a shell restart, Omarchy notifies when one runs out even with the island off,
+a shell restart, Omarchy notifies when one runs out even with the island hidden,
 and the bar's Reminder indicator shows the same ones. The Service reads them
 with `omarchy-reminder show --json` ([qml/Timers.js](../qml/Timers.js)) when it
 starts, after each change the island makes, when the helper sees a reminder
@@ -528,8 +527,7 @@ view's implicit height covers the strip and the refusal notice under it, and
 the open body gives it that room. While the Shelf tab shows, the island's own
 drop area steps aside so drops reach the strip and its notice; on Home and
 while closed, a file drop still lands on the shelf through the island. A drag
-held over the strip or the Share tile keeps the island open like a drag out. The
-legacy panel has no shelf strip. The strip holds:
+held over the strip or the Share tile keeps the island open like a drag out. The strip holds:
 
 - a square Share drop tile ([ShelfShareTile.qml](../components/ShelfShareTile.qml)).
   Files dropped on it are shared without being shelved. It accepts only Copy
@@ -587,7 +585,7 @@ and publishes twice the nearer gap from the notch centre to a row
 resizes, it withdraws the span at once (-1, so the catch zone never overlaps a
 row that grew) and publishes the new span 250 ms after the rows settle; an
 animating row changes the input region once when it starts and once when it
-settles, never per frame. When that layout cannot be found, or outside island mode, it
+settles, never per frame. When that layout cannot be found, or without a top horizontal bar, it
 publishes -1 and the catch zone stays off; the closed body keeps its own input
 region either way. The region is part of the layer
 input region only while closed, so it jumps once as the island opens or closes

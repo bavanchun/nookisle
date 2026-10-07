@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Pairwise island-versus-baseline verdicts from benchmark-resources.py runs.
+"""Historical island-versus-native-widget verdicts from archived sampler runs.
+
+New on/off comparisons are retired: Nookisle always uses the island, with no
+setting or development bypass for the stock UI. This analyzer preserves the
+original file labels and budgets solely to interpret previously collected runs.
 
 A directory holds `<cohort>-island-false-<n>.json` / `<cohort>-island-true-<n>.json`
 pairs. For each pair the owned processes (every sampled process except the one

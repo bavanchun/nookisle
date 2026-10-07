@@ -77,7 +77,7 @@ native probe results and live reports.
 | Mic mute HUD source | Pure baseline and mute-flip tests plus packaged QML load check. Panel wiring and live PipeWire mute changes remain untested |
 | `fullscreenBehavior` selection | `qml-fullscreen-policy` covers all three modes and exact selected-app matching, and Panel applies the policy to the fullscreen client on the island's monitor. Live compositor behavior remains untested |
 | Inline, below and open HUD visuals and draggable bar | Offscreen `qml-hud-styles` and `qml-hud-bar` cover all layouts, direct level requests, timer renewal and active-only hit rectangles. The inline volume and brightness readouts and the volume pill below the notch were captured live (inline volume, inline brightness, and below-the-notch readouts); a live pointer drag of the bar remains untested |
-| `island:false` restores the bar widget; `hud:false` stops the backlight monitor | Verified live |
+| `hud:false` stops the backlight monitor | Verified live |
 | Shelf paste (Ctrl+V), copy (Ctrl+C) and remove (Delete or the menu) | Verified by `qml-shelf-view` (keys and menu), `qml-shelf` (the `Shelf.js` model) and `qml-lifecycle` (the Service's clipboard processes); the `text/uri-list` clipboard round trip was verified live |
 | Dragging files into and out of the shelf | **Not tested.** Both paths ship enabled; Ctrl+V and Ctrl+C are the proven route |
 | Shelf tab placement, close guard and drag catch zone | Verified offscreen by `qml-island-surface` (ShelfView in the Shelf tab with room for its notice, busy pairing through the real surface, catch-zone states and drag-open, a Share tile drop keeping the island open), `qml-catch-zone` (row detection and free span) and `qml-bar-widget` (the spacer measuring occupied left and right rows, and publishing -1 without them). The live drag into the catch zone is **not tested** |
@@ -99,19 +99,19 @@ PipeWire 1.6.8). The evidence is in the live acceptance report.
 |---|---|
 | Spectrum bars (`visualizer`, on by default) move while playing and hold flat while paused; the capture is one `nookisle-spectrum` node started with `--fps 15`, and it stops on pause | Verified live with 16 bands at 30 lines a second; on the 12-band, 20-line build and again on the final 15-line default the moving bars and the single node were rechecked |
 | With `visualizer` off, the playing pill shows the static play-state glyph and no capture runs | Verified live |
-| The capture stops with `visualizer:false`, a hidden island (`autoShow:false`) and `island:false` | Verified live |
+| The capture stops with `visualizer:false`, a hidden island (`autoShow:false`) | Verified live |
 | The capture while the screen is locked | **Known limitation.** The stock Omarchy host hides its lock service from plugins, so a playing, visible island keeps capturing behind the lock. A reachable lock provider is covered by `qml-lifecycle` |
 | No recording indicator on the bar | Verified for this layout, which has no Microphone widget. Omarchy's optional Microphone widget counts every input stream, this capture included |
 | Track peek on a song change, settled by 4 s, clear of the bar's left and right sections | Verified live |
 | Charger and battery peeks | `qml-peek` and `qml-island-surface`; UPower's 0..1 level scale was checked live. A real plug or unplug was **not performed** |
-| Artwork tint of the spectrum, sliders, hairline and glow, at a vibrance floor, with the island's text, tabs, card and filled controls kept neutral (the legacy panel keeps its tinted card and controls); `tint:false` restores the theme | `qml-tint`; the earlier live check with `remoteArtwork:true` predates the neutral chrome, which awaits live acceptance |
+| Artwork tint of the spectrum, sliders, hairline and glow, at a vibrance floor, with the island's text, tabs, card and filled controls kept neutral; `tint:false` restores the theme | `qml-tint`; the earlier live check with `remoteArtwork:true` predates the neutral chrome, which awaits live acceptance |
 | Grow with a slight overshoot into the spare strip, clean collapse, nothing clipped at the sides | Verified live from screen captures |
 | Summoned Space, N, P, Tab and Escape | Verified live with exclusive keyboard focus, sent only to the island or a throwaway window |
 | Wheel volume and horizontal swipe on the pill | `qml-island-input` only. **Not performed live**: nobody scrolled in the 60 s window and no pointer injector is installed. The swipe direction under natural scrolling is also unverified live |
 | Double-click on the expanded art toggles play/pause | `qml-island-input` only |
 | Synced lyrics from LRCLIB follow the song; `lyrics:false` returns to Now playing (now Home) | Verified live with one real lookup |
 | Lyrics settle while skipping tracks; no lookup while hidden or locked | `qml-lyrics` and the source contract only |
-| `island:false` legacy widget and `hud:false` | Verified live |
+| `hud:false` | Verified live |
 | More than one output, frame timing and GPU budgets | **Not tested** |
 
 ## Notch parity
@@ -134,7 +134,7 @@ linked where they exist; a row without one was checked by its tests only.
 | Settings window and welcome steps | `qml-settings-window`, `qml-settings` and `qml-onboarding` |
 | Shelf strip, menu, drag-out and share | See the shelf rows under [dynamic island](#dynamic-island) |
 | Media-key bindings block and optional blur | `tests/test-install-plugin.py` covers the marked block, backup, verification and removal against a disposable config |
-| One readout per media key | `tests/test-install-plugin.py` runs the helper with faked commands: the island's `ok` keeps Omarchy's OSD away, while `unavailable`, no answer and external or Apple displays run only Omarchy's own command. `qml-lifecycle` covers the `hudReadout` answers for `hud:false`, `island:false`, a hidden island and an unwatched backlight. Physical keys, a real disabled plugin and a DDC display remain untested live |
+| One readout per media key | `tests/test-install-plugin.py` runs the helper with faked commands: the island's `ok` keeps Omarchy's OSD away, while `unavailable`, no answer and external or Apple displays run only Omarchy's own command. `qml-lifecycle` covers the `hudReadout` answers for `hud:false`, a hidden island and an unwatched backlight. Physical keys, a real disabled plugin and a DDC display remain untested live |
 
 ## Features beyond parity
 

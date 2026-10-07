@@ -95,7 +95,7 @@ audio tools, and it exists only while music plays on the visible island
 (it keeps running while the island is expanded, to avoid a reconnect on every
 hover). It stops when
 playback pauses, motion is reduced (the pill shows a still glyph instead), or
-the island is hidden or turned off (`island:false`),
+the island is hidden,
 and on lock when the host exposes its lock service. On a host that
 scopes the lock service away from plugins (Omarchy since 2026-09) there is no
 lock signal to read, so a playing, visible island keeps the capture running
@@ -110,8 +110,8 @@ battery) and whether the machine runs on battery, through
 [PowerSource.qml](../components/PowerSource.qml), to draw power peeks or banners and the
 battery UI. The values stay in memory as the last sample the
 peek compares against; nothing is written to disk, logged, sent anywhere or
-exposed through `status()` or IPC. `power:false`, `island:false` or a
-hidden bar unload the reader entirely.
+exposed through `status()` or IPC. `power:false` or withdrawn panel admission unloads the reader entirely.
+Bar placement and visibility do not disable the island or its power reader.
 
 The same reader also collects what the header battery gauge and its popover
 show: the charge state, UPower's time to full or empty, the laptop battery's
@@ -205,7 +205,7 @@ turns it off again.
 - **Which sources.** Every source is eligible, browser tabs included: with
   lyrics on, a YouTube tab's title goes to LRCLIB the same way a Spotify
   track's does.
-- **When.** Only while lyrics is on, the island is in island mode, on screen
+- **When.** Only while lyrics is on, the island is on screen
   and open, and it shows Home (for its one-line lyric) or the Lyrics view:
   once when either opens, and once per track change while one stays open,
   after the new track has held for 0.4 s, so skipping through tracks does not
@@ -234,8 +234,7 @@ service; coverage and availability are its own. The view credits it.
 
 Calendar access is off by default (`showCalendar:false`). The helper reads
 only configured `.ics` files or vdir folders, and only while the calendar
-source is active: while `showCalendar` is on, the plugin is in island mode and
-the panel is admitted (unlocked). That includes times the island is hidden
+source is active: while `showCalendar` is on and the panel is admitted (unlocked). That includes times the island is hidden
 (`autoShow:false`, or over fullscreen), so the data is ready when it shows.
 While the source is active the helper watches those paths for changes (a burst
 of changes, such as a sync, is read once about 300 ms after it settles), and
@@ -293,8 +292,7 @@ a 4 MiB response cap (and a matching read buffer), and send credentials only to
 the matching origin. A remote server learns the machine's IP address and the requested
 calendar URL; CalDAV additionally receives its Basic authorization header, at every
 refresh while the source is active, including while the island is hidden. The helper
-does not fetch while the calendar source is inactive (calendar off, island mode off,
-or locked), and closes its pooled connections whenever the sources are reconfigured.
+does not fetch while the calendar source is inactive (calendar off or locked), and closes its pooled connections whenever the sources are reconfigured.
 
 ## File shelf
 

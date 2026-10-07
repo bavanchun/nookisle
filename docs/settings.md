@@ -3,11 +3,9 @@
 **Settings.** [qml/Settings.js](../qml/Settings.js) is the one settings
 schema: each key's type (`bool`, `int`, `real`, `enum`, `string`, `list` or `sources`),
 default, bounds or allowed values, section, label and help text. Besides
-`autoShow`, `reducedMotion`, `highContrast`, `remoteArtwork`, `island` and
-`hud`, `configure` accepts five more booleans, each with a row in the
-settings window and the legacy panel's
-[IslandSettings.qml](../components/IslandSettings.qml), and a field in
-`status()`. No setting has its own IPC verb; every setting travels through
+`autoShow`, `reducedMotion`, `highContrast` and `remoteArtwork`,
+`configure` accepts the six booleans below, each with a row in the
+settings window and a field in `status()`. Nookisle always uses the island. No setting has its own IPC verb; every setting travels through
 `configure`.
 
 | Key | Default | Governs |
@@ -16,7 +14,7 @@ settings window and the legacy panel's
 | `visualizer` | on | live spectrum bars in the closed notch and the track peek (for its CPU cost while playing, see [performance](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/performance.md#island-workloads)) |
 | `peek` | off | the short track peek when the playing track changes |
 | `power` | on | "Battery and charger": reading the battery through UPower at all. It gates charger changes and low (20 %) or critical (10 %) battery warnings, as a banner or a peek (`powerStyle`), and the header gauge; off, every other Battery row is dimmed |
-| `tint` | on | tinting the bars, sliders, hairline and glow with the artwork's colour (the legacy card and its controls too) |
+| `tint` | on | tinting the bars, sliders, hairline and glow with the artwork's colour |
 | `lyrics` | off | synced lyrics from lrclib.net (sends title, artist, album and length) |
 
 Lyrics and the level readout (`hud`) are opt-in: lyrics sends track metadata off the machine, and HUD defaults to off so Omarchy's OSD keeps the media keys without duplicate readouts.
@@ -24,7 +22,7 @@ Lyrics and the level readout (`hud`) are opt-in: lyrics sends track metadata off
 `configure` takes a JSON object of schema keys and validates every value
 against the schema before writing anything: an unknown key, a wrong type, an
 out-of-range number or an unlisted enum word rejects the whole batch
-(`invalid-settings`), and neither store changes. The eleven booleans above
+(`invalid-settings`), and neither store changes. The ten booleans above
 keep living in the host's `shell.json` bar entry, written exactly as before.
 Every other key is typed and lives in the plugin's own file,
 `$XDG_CONFIG_HOME/nookisle/settings.json` (or

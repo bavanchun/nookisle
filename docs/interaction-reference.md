@@ -45,8 +45,7 @@ arithmetic live in [IslandKeys.js](../qml/IslandKeys.js). Every playback action
 goes through a freshly captured intent, needs the same capability as the
 matching button (`CanControl` plus `CanPlay`/`CanPause`, `CanGoNext`,
 `CanGoPrevious`, `CanSetPosition` with a known length, or `CanSetVolume`), and is not
-sent while another command is pending. All of it is island-only: with
-`island:false` the legacy panel has no wheel, swipe or art gesture.
+sent while another command is pending. Nookisle always uses this island interaction surface.
 
 Local IPC callers can use `shuffle()` to toggle the selected source,
 `repeat()` to cycle off → playlist → track → off, and `seek(seconds)` to move
@@ -124,9 +123,9 @@ copies the host's `Commons` module beside it, and loads the complete
 `Panel.qml` under Quickshell on the offscreen platform, first without a host
 and then as the island over a top bar with a stub coordinator. Any QML error
 or warning fails it, so a merge can never ship a panel that does not load.
-It also checks that `status()`'s activity follows the mode shown: an island
-built while a recording already runs (privacy indicators off) reports it,
-switching to legacy mode clears it, and returning reports it again.
+It also checks that `status()`'s activity follows an island built while a
+recording already runs (privacy indicators off), including a hidden or non-top
+bar without a fallback UI.
 Its one substitution is the layer-shell window: `PanelWindow` needs a Wayland
 backend the offscreen platform lacks, so the package's layer windows become
 [TestPanelWindow](../tests/qml/panel-load/TestPanelWindow.qml), a plain
@@ -135,10 +134,10 @@ properties; every other file runs as installed.
 
 [Control tests](../tests/qml/tst-controls.qml) exercise pointer/keyboard
 single-commit gestures, source/track/lock cancellation, volume limits, and
-disabled/pending actions. [State tests](../tests/qml/tst-island-state.qml)
-exercise expanded-loader teardown, empty/unavailable/error states, truthful
-platform labels, real raster corner clipping, motion cancellation, and the
-sleep timer's settings row, status indicator and settings scrolling.
+disabled/pending actions. [Source-state tests](../tests/qml/tst-source-state.qml)
+exercise truthful platform labels; [tint tests](../tests/qml/tst-tint.qml) cover
+artwork rendering, crossfades and rapid skips. Home and settings suites cover
+their own states and controls.
 [Island surface tests](../tests/qml/tst-island-surface.qml) exercise the hover
 dwell/leave-grace state machine, tap and drag-in expansion, the explicit-open
 and mid-gesture collapse guards, the notch corners, the HUD row, Escape on

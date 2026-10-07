@@ -219,11 +219,10 @@ Change the delay with `omarchy-shell nookisle configure '{"summonAutoClose":5000
 
 ## Preferences and diagnostics
 
-With `island` on (the default), the island sits over the centre of a top bar:
-hover or tap it to open Home, or summon it from a key. With `island:false`, the
-title and play/pause button appear in the status bar instead, and clicking the
-title opens details below it. `autoShow: false` hides the bar widget, while
-explicit panel IPC still works.
+Nookisle always shows the island at the top centre of the screen: hover or
+tap it to open Home, or summon it from a key. It keeps the island with a hidden,
+bottom, side or vertical bar too. `autoShow: false` hides it until an explicit
+summon; panel IPC still works.
 The `nookisle` service IPC exposes redacted status and retry:
 
 ```sh
@@ -232,7 +231,6 @@ omarchy-shell nookisle retry
 omarchy-shell nookisle configure '{"reducedMotion":true}'
 omarchy-shell nookisle configure '{"highContrast":true}'
 omarchy-shell nookisle configure '{"autoShow":false}'
-omarchy-shell nookisle configure '{"island":false}'
 omarchy-shell nookisle configure '{"hud":false}'
 omarchy-shell nookisle settings     # open the settings window
 omarchy-shell nookisle onboarding   # show the welcome steps again

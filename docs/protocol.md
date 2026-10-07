@@ -123,8 +123,7 @@ passing through the helper's memory or blocking its event loop.
 
 `backlightWatch {requestId, enabled}` starts or stops the helper's watch on
 udev's netlink socket for display backlight changes; the service sends it
-whenever the brightness source becomes active or inactive (HUD and island on,
-panel admitted), and again after each new connection. The helper answers
+whenever the brightness source becomes active or inactive (HUD on, panel admitted), and again after each new connection. The helper answers
 `requestAck {requestId, status}`, where `status` is `ok`, or `unavailable` when
 this process cannot open the udev monitor (the brightness readout then stays
 with Omarchy's own OSD). While watching, it sends
@@ -138,8 +137,7 @@ re-reads that device's level only when it is the backlight the HUD shows. LED
 
 Calendar messages use the same version and connection generation as media
 messages. `calendarConfigure {requestId, enabled, sources, refreshMinutes}`
-activates the configured sources while the calendar preference, island mode
-and UI admission hold; hiding the island keeps them configured, so remote
+activates the configured sources while the calendar preference and UI admission hold; hiding the island keeps them configured, so remote
 sources refresh on their configured interval rather than on every reveal.
 `calendarWindow {requestId, offset}` returns
 `calendarWindowResult {requestId, items, errors, nextOffset}` for the local
@@ -254,8 +252,7 @@ ordinary requests have distinct credit namespaces.
 replaceable sample computed from the helper's monotonic clock. The service
 subscribes only while the selected source is playing and the view is visible
 and admitted: at 250ms while the view is expanded, and at 1000ms while the
-collapsed island shows, for its progress hairline. The collapsed legacy panel,
-hidden, paused and locked views have no recurring progress subscription. QML displays samples without a second extrapolation clock.
+collapsed island shows, for its progress hairline. Hidden, paused and locked views have no recurring progress subscription. QML displays samples without a second extrapolation clock.
 A seek (an MPRIS `Seeked` signal, or a browser state marked `positionEvent`)
 publishes a new endpoint snapshot at once, so a seek while paused, with no
 progress subscription, shows its position immediately.

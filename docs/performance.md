@@ -6,7 +6,17 @@ runs, artifact hashes, environment details and conclusions with the work plan's
 stateful reports. This guide defines interpretation, not a claim that a budget
 has passed.
 
-## Compare equivalent workloads
+## Current measurement scope
+
+Nookisle always uses the island. New on/off comparison cohorts are retired:
+there is no setting or development bypass for the former stock widget UI.
+The pair analyzer below is retained only for archived reports, whose file-name
+labels identify the old baseline and island runs. Their budgets and results
+remain evidence for the revisions actually sampled; they do not establish
+performance acceptance for this change. No new cohorts were run for it.
+The process sampler still measures the current always-island workloads.
+
+## Historical comparison interpretation
 
 Use at least three alternating baseline/island pairs. Each run needs 30 seconds
 of warmup followed by 120 seconds of sampling. Preserve playback state, selected
@@ -63,7 +73,7 @@ pairs. A cohort passes only when the median delta clears the budget by more
 than that spread, and fails only when it exceeds the budget by more than that
 spread. Anything between, or fewer than three pairs, is `inconclusive` and
 needs more pairs, not a conclusion. The final parity acceptance shows why: the
-island:false shell alone moved by 18 to 22 MiB PSS between pairs of the same
+historical native-widget baseline alone moved by 18 to 22 MiB PSS between pairs of the same
 cohort, so its hover-cycle median of 31.3 MiB (pair range 10.6 to 34.8) could
 not tell a fixed cost from noise, while camera-open (37.8 MiB with ±1 MiB of
 noise) is a clear failure. The sampler also records USS (private pages) and
@@ -93,10 +103,10 @@ do not splice lifetimes or silently drop a process. Review output and cohort
 labels before sharing; do not put titles, URLs, tokens or personal paths in
 labels or public reports.
 
-## Island workloads
+## Historical island workloads
 
-The dynamic island adds three cohorts, each a matched `island:false` baseline
-against `island:true` on the same shell: collapsed with playback paused,
+The dynamic island adds three cohorts, each a matched native-widget baseline
+against the island on the same shell: collapsed with playback paused,
 expanded with a silent local track playing, and a hover cycle that moves the
 pointer onto and off the pill every second. The brightness HUD's backlight
 events come from the helper's own udev socket, so no separate monitor process
@@ -107,8 +117,8 @@ The island experience adds a fourth cohort, collapsed with music playing, held
 to the expanded-playing limit of 2 percentage points. In both playing cohorts
 the owned set also includes the `nookisle-spectrum` capture process,
 re-resolved before every run (match it with a pattern that allows arguments,
-such as `io\.github\.bavanchun\.nookisle/libexec/nookisle-spectrum( |$)`). An
-`island:true` playing run without a live spectrum process is invalid and is
+such as `io\.github\.bavanchun\.nookisle/libexec/nookisle-spectrum( |$)`). A
+historical island playing run without a live spectrum process is invalid and is
 repeated. A silent track no longer represents playback, because the capture
 prints nothing while the signal is silent: the playing cohorts play a
 pink-noise fixture. Keep the default sink muted when its monitor still carries
@@ -161,23 +171,23 @@ points. These are estimates from the per-redraw cost, not measurements; the
 `collapsed-idle-glance` and `collapsed-idle-face` cohorts measure them. Each
 is collapsed with nothing playing (the players paused past the pause grace)
 and the style set explicitly, held to the collapsed-paused limit of 0.5
-points, against the same `island:false` baseline. The face cohort runs in
+points, against the same historical native-widget baseline. The face cohort runs in
 daytime: from 23:00 to 06:00 the face sleeps and never blinks. Since the
 glance is the default idle style, `collapsed-paused` now measures it too.
-The acceptance harness (benchmark runner and analyzer) includes both cohorts.
+Archived acceptance reports include both cohorts.
 
 The privacy indicators add `collapsed-idle-privacy`: collapsed with nothing
 playing while a throwaway `pw-record /dev/null` captures the microphone in
-both modes, so the island shows the mic dot, held to the collapsed-paused
-limit of 0.5 points against the same `island:false` baseline. The dots are
+both historical runs, so the island shows the mic dot, held to the collapsed-paused
+limit of 0.5 points against the same historical native-widget baseline. The dots are
 static; the cost is the PipeWire graph bindings, one tracked stream and the
-helper's idle camera watch. It runs in the same harness.
+helper's idle camera watch. Archived acceptance reports include this cohort.
 
 Timers add `collapsed-idle-timer` (a 60-minute Omarchy reminder running with
 nothing playing, so the timer fills the notch; 0.5 points) and
 `collapsed-playing-timer` (the same reminder beside playing music, as the
 minimal ring; 2 points, the collapsed-playing limit). The reminder runs in
-both modes, and the harness stops exactly that unit afterwards. The labels
+both historical runs, and the harness stops exactly that unit afterwards. The labels
 and the ring step once a minute; reading the list costs one short
 `omarchy-reminder` run per change, not per minute.
 
