@@ -180,6 +180,14 @@ Item {
             x += tabWidth(views[i]) + tokens.small;
         return x;
     }
+    // The keyboard-focus target in header coordinates: both tab capsules, or
+    // the back chevron in a sub-view. The surface sizes its ring from it.
+    readonly property rect tabsRect: {
+        if (subView)
+            return Qt.rect(left.x + backButton.x, left.y + backButton.y, backButton.width, backButton.height);
+        var last = views.length > 0 ? views[views.length - 1] : "";
+        return Qt.rect(left.x + tabRow.x, left.y + tabRow.y, last ? tabX(last) + tabWidth(last) : 0, tabRow.height);
+    }
     FontMetrics {
         id: tabFont
         font.family: root.tokens.fontFamily
@@ -272,6 +280,7 @@ Item {
             }
         }
         IslandButton {
+            id: backButton
             objectName: "lyricsBackButton"
             visible: root.subView
             tokens: root.tokens

@@ -39,6 +39,7 @@ TestCase {
         property string spectrumState: "off"
         property var spectrumLevels: []
         property bool islandPointerActive: false
+        property bool lyrics: false
         property var shelfItems: []
         property bool sleepArmable: true
         property bool sleepLockVerified: true
@@ -95,6 +96,18 @@ TestCase {
         returnKey: Qt.Key_Return, enter: Qt.Key_Enter,
         shift: Qt.ShiftModifier, blocked: Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier
     })
+    QtObject {
+        id: lyricsFixture
+        property bool lyricsEnabled: true
+        property string lyricsState: "idle"
+        property string errorCode: ""
+        property var lines: []
+        property int currentIndex: -1
+        property var meta: ({ title: "Afterglow" })
+        readonly property string displayState: !lyricsEnabled ? "off"
+            : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
+        function retry() {}
+    }
     function capabilities() {
         return {
             CanControl: true,
@@ -346,6 +359,43 @@ TestCase {
         verify(!ring.visible, "the ring moves to the focused control inside the view");
         wait(50);
         grabImage(surface).save(Qt.resolvedUrl("../../build/ui-preview/island-keys-controls.png").toString().slice(7));
+    }
+    // The ring hugs the tabs like a selection outline: the two tab capsules
+    // plus a pixel of air inside the border, not the header's whole side.
+    function test_focusRingHugsTheTabs() {
+        var surface = summon();
+        var ring = findChild(surface, "keyFocusRing");
+        var header = findChild(surface, "notchHeader");
+        var gap = design.focusWidth + 1;
+        verify(ring.visible);
+        var tabs = header.tabsRect;
+        verify(tabs.width > 0 && tabs.height > 0, "the tabs have a rectangle");
+        verify(ring.width <= tabs.width + 2 * gap + 1, "no wider than the tabs: " + ring.width + " vs " + tabs.width);
+        compare(ring.height, header.capsuleHeight + 2 * gap, "capsule height plus the air");
+        compare(ring.radius, ring.height / 2);
+        compare(ring.border.width, design.focusWidth);
+        var home = ring.mapFromItem(findChild(surface, "viewHomeButton"), 0, 0);
+        var shelf = ring.mapFromItem(findChild(surface, "viewShelfButton"), 0, 0);
+        var shelfButton = findChild(surface, "viewShelfButton");
+        verify(home.x >= 0 && home.y >= 0, "the ring contains the first tab");
+        verify(shelf.x + shelfButton.width <= ring.width && shelf.y + shelfButton.height <= ring.height,
+            "and the last one");
+    }
+    function test_focusRingContainsTheBackChevronInLyrics() {
+        var surface = summon();
+        facade.lyrics = true;
+        surface.lyricsSource = lyricsFixture;
+        surface.expandTo("lyrics");
+        waitForRendering(surface);
+        compare(surface.view, "lyrics");
+        surface.focusKeys();
+        var ring = findChild(surface, "keyFocusRing");
+        var back = findChild(surface, "lyricsBackButton");
+        verify(ring.visible && back.visible);
+        var at = ring.mapFromItem(back, 0, 0);
+        verify(at.x >= 0 && at.y >= 0 && at.x + back.width <= ring.width && at.y + back.height <= ring.height,
+            "the ring contains the chevron");
+        verify(ring.width <= back.width + 2 * (design.focusWidth + 1) + 1, "and hugs it");
     }
     function test_arrowsSeekAndVolume() {
         summon();

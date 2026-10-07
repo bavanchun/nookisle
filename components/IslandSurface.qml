@@ -1365,10 +1365,13 @@ Item {
                 // view shown.
                 Rectangle {
                     objectName: "keyFocusRing"
-                    x: header.x - (root.tokens ? root.tokens.focusWidth : 2)
-                    y: header.y
-                    width: header.sideWidth + 2 * (root.tokens ? root.tokens.focusWidth : 2)
-                    height: header.height
+                    // Hugs the tabs (or the back chevron) with a pixel of air
+                    // inside the border, like a selection outline.
+                    readonly property real inflate: (root.tokens ? root.tokens.focusWidth : 2) + 1
+                    x: header.x + header.tabsRect.x - inflate
+                    y: header.y + header.tabsRect.y - inflate
+                    width: header.tabsRect.width + 2 * inflate
+                    height: header.tabsRect.height + 2 * inflate
                     radius: height / 2
                     color: "transparent"
                     border.width: root.tokens ? root.tokens.focusWidth : 2

@@ -561,7 +561,9 @@ through the view to the root, whose Escape closes Home's settings or source
 overlay first, then leaves Lyrics for Home, then collapses the island.
 A collapse gives that focus back (`IslandSurface.releaseKeys()`), so every
 summon starts on the root, where Tab and Shift+Tab switch views, and a hover
-open never wears a focus ring left from an earlier summon.
+open never wears a focus ring left from an earlier summon. While the root holds
+focus, a ring in the accent colour fits the tabs (or the back chevron in
+Lyrics), sized from `NotchHeader.tabsRect`.
 
 **Shape.** The island is a solid black notch
 ([NotchShape.qml](../components/NotchShape.qml)), after boring.notch's
