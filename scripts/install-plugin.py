@@ -473,8 +473,8 @@ def validate(source):
                 "libexec/nookisle-artwork-fetch",
                 "libexec/nookisle-native-host", "libexec/nookisle-media-keys"]
     required += ["components/" + name + ".qml" for name in (
-        "Artwork", "DesignTokens", "IntentSlider", "IslandButton", "IslandContent",
-        "IslandIcon", "IslandSettings", "SourcePicker", "BrightnessSource", "MicSource",
+        "Artwork", "DesignTokens", "IntentSlider", "IslandButton", "IslandSurface", "HomeView", "PlayerPanel",
+        "IslandIcon", "SettingsWindow", "SourcePicker", "BrightnessSource", "MicSource",
         "HudBar", "HudInline", "HudBelow", "HudCapsule")]
     required += ["browser/chrome/" + name for name in (
         "manifest.json", "adapters.js", "content-script.js", "router.js", "worker.js")]

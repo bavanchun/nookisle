@@ -94,7 +94,6 @@ Item {
         return Object.assign(flat, Protocol.object(entry.settings) ? entry.settings : {})
     }
     readonly property bool autoShow: settings.autoShow !== false
-    readonly property bool island: settings.island !== false
     readonly property bool hud: settings.hud === true
     // On by default: at spectrumFps lines a second the live bars fit the
     // collapsed-playing budget.
@@ -114,9 +113,7 @@ Item {
     // screen so only the bar under the island suppresses its centre-hover
     // peek.
     property string islandScreenName: ""
-    // Written by Panel.qml: true only while the island itself, not the legacy
-    // panel, is on screen. viewVisible alone cannot say this, because it also
-    // mirrors the legacy panel when the island falls back to it.
+    // Written by Panel.qml while any island is on screen, collapsed or expanded.
     property bool islandShowing: false
     // Written by Panel.qml: its HudModel's suppression (fullscreen, or open
     // with showOpenNotchHud off and no closed island elsewhere), when the
@@ -209,7 +206,7 @@ Item {
     // own command and OSD, so exactly one readout appears. Brightness needs
     // the backlight the key moves to be the one the island watches.
     function hudReadout(kind, device) {
-        if (!hud || !island || !islandShowing || hudSuppressed || !panelAllowed || retired || disposed) return false
+        if (!hud || !islandShowing || hudSuppressed || !panelAllowed || retired || disposed) return false
         if (hudHeldKind !== "" && kind !== hudHeldKind) return false
         if (kind === "volume" || kind === "mic") return true
         var source = brightnessSourceLoader.item
@@ -768,7 +765,7 @@ Item {
         if (!connected || !connectionGeneration || stopping) { subscriptionKey = ""; return }
         // The collapsed island shows a progress hairline, so it subscribes too,
         // at 1 Hz: a 240 px line over a whole track moves about a pixel a
-        // second. The legacy panel still subscribes only while expanded.
+        // second. Hidden islands do not subscribe.
         var active = uiAllowed && viewVisible && (viewExpanded || islandShowing)
             && selectedEndpoint && selectedEndpoint.status === "Playing"
         var cadence = viewExpanded ? 250 : 1000
@@ -815,7 +812,7 @@ Item {
     signal screenshotSaved(string path)
     signal recordingSaved(string path)
     signal remindersChanged()
-    readonly property bool watchesAllowed: uiAllowed && island
+    readonly property bool watchesAllowed: uiAllowed
     readonly property var watchWanted: ({
         cameraDevices: watchesAllowed && fileSettings.privacyIndicators === true,
         // The recording watch wakes on every change in /tmp, so only the
@@ -839,7 +836,7 @@ Item {
     onWatchWantedChanged: Qt.callLater(syncWatch)
     // Omarchy's screen recording: stop it from the island, and, opt-in,
     // shelve the saved file (the shelf may persist, so it is off by default).
-    readonly property bool recordingShown: island && fileSettings.recordingActivity === true && recordingState.active === true
+    readonly property bool recordingShown: fileSettings.recordingActivity === true && recordingState.active === true
     signal captureShelved(string kind, string path)
     function stopRecording() {
         if (!watchesAllowed || recordingState.active !== true) return false
@@ -873,12 +870,12 @@ Item {
     }
     // Timers are Omarchy's reminders (systemd user timers made by
     // omarchy-reminder), so they outlive a shell restart, notify even with
-    // the island off, and match the bar's Reminder indicator. The list is
+    // the island hidden, and match the bar's Reminder indicator. The list is
     // read on start, after each change the island makes, when the helper sees
     // a reminder unit come or go, and once when the soonest is due; a timer
     // that leaves the list at its time finished, and one that leaves earlier
     // was cancelled.
-    readonly property bool timersEnabled: island && fileSettings.timers === true
+    readonly property bool timersEnabled: fileSettings.timers === true
     property var timerList: []
     property bool timersAvailable: true
     property string timerBuffer: ""
@@ -1082,7 +1079,7 @@ Item {
         closeOnboarding(false)
     }
     // The settings and onboarding windows. The Service owns them, so the IPC
-    // verbs, the legacy settings view and the header gear open the same
+    // verbs and the header gear open the same
     // window, and a lock, retirement or dispose closes it.
     readonly property bool windowsAllowed: panelAllowed && !retired && !disposed
     property bool settingsWindowOpen: false
@@ -1138,7 +1135,7 @@ Item {
     // The first time this instance's island becomes usable, a settings file
     // without onboardingDone opens the welcome.
     function offerOnboarding() {
-        if (onboardingOffered || !uiAllowed || !island || fileSettings.onboardingDone === true) return
+        if (onboardingOffered || !uiAllowed || fileSettings.onboardingDone === true) return
         onboardingOffered = true
         openOnboarding()
     }
@@ -1718,7 +1715,7 @@ Item {
     readonly property string settingsFilePath: settingsDir ? settingsDir + "/settings.json" : ""
     property var fileSettings: Settings.resolve(null)
     function calendarSend(type, fields) {
-        if (!uiAllowed || !showCalendar || !calendarSupported || !island) return false
+        if (!uiAllowed || !showCalendar || !calendarSupported) return false
         return type === "calendarCredential" ? sendCalendarCredential(fields) : send(type, fields)
     }
     // Removing a calendar source is a Service transaction, because the
@@ -1859,7 +1856,7 @@ Item {
                 diagnostic: root.diagnostic, remoteArtwork: root.remoteArtwork,
                 settings: Settings.publicValues(root.fileSettings),
                 reducedMotion: root.reducedMotion, highContrast: root.highContrast,
-                island: root.island, hud: root.hud, visualizer: root.visualizer,
+                hud: root.hud, visualizer: root.visualizer,
                 peek: root.peek, tint: root.tint, power: root.power, lyrics: root.lyrics,
                 shelfCount: root.shelfEntries.length, brightnessHud: root.brightnessMonitorRunning,
                 timers: root.timerStatus(), activity: root.activityKey, privacy: root.privacyCounts,
@@ -1937,7 +1934,7 @@ Item {
     Component.onDestruction: dispose()
     Loader {
         id: calendarLoader
-        active: root.showCalendar && root.calendarSupported && root.island && root.uiAllowed
+        active: root.showCalendar && root.calendarSupported && root.uiAllowed
         source: "components/CalendarSource.qml"
         onLoaded: item.coordinator = root
     }
@@ -2014,7 +2011,7 @@ Item {
     Binding {
         target: brightnessSourceLoader.item
         property: "active"
-        value: root.hud && root.island && root.panelAllowed && !root.retired && !root.disposed
+        value: root.hud && root.panelAllowed && !root.retired && !root.disposed
         when: brightnessSourceLoader.item !== null
     }
     Binding {
@@ -2131,7 +2128,7 @@ Item {
     // retries exhausted until the next desired edge).
     property string spectrumState: "off"
     // Reduced motion shows a still glyph, so nothing is captured for it.
-    readonly property bool spectrumDesired: visualizer && !reducedMotion && island && islandShowing && uiAllowed
+    readonly property bool spectrumDesired: visualizer && !reducedMotion && islandShowing && uiAllowed
         && !!selectedEndpoint && selectedEndpoint.status === "Playing" && !retired && !disposed
     readonly property bool spectrumRunning: spectrum.running
     readonly property var spectrumPid: spectrum.processId

@@ -32,18 +32,16 @@ function absoluteVolume(level) {
 // opened) island takes the keyboard exclusively: Hyprland did not hand focus
 // to the already-mapped on-demand layer when its interactivity flipped, so
 // summoned keys went to the window underneath. A hover-opened island never
-// takes the keyboard. The legacy panel keeps its on-demand focus. While the
+// takes the keyboard. While the
 // island lends the keyboard to a settings or welcome window it opened
 // (`lent`), it gives up the grab: an exclusive layer would keep every key
 // from that window.
-function keyboardFocus(visible, islandMode, explicitOpen, islandExpanded, legacyExpanded, lent) {
-    if (!visible) return "none"
-    if (islandMode) return explicitOpen && islandExpanded && lent !== true ? "exclusive" : "none"
-    return legacyExpanded ? "onDemand" : "none"
+function keyboardFocus(visible, explicitOpen, islandExpanded, lent) {
+    return visible && explicitOpen && islandExpanded && lent !== true ? "exclusive" : "none"
 }
 
 // The capability each playback action needs, matching the expanded
-// transport's own enable rules (IslandContent), so a key or a swipe never
+// transport's own enable rules (PlayerPanel), so a key or a swipe never
 // sends what the matching button would refuse.
 function canInvoke(action, state) {
     var caps = state && state.capabilities ? state.capabilities : {}

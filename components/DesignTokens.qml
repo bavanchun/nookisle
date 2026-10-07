@@ -88,10 +88,6 @@ QtObject {
     readonly property int bodySize: theme.bodySize || 12
     readonly property int captionSize: theme.captionSize || 11
     readonly property int focusWidth: 2
-    // The legacy panel's own morph. The island reads island*Duration instead
-    // (below), so island:false keeps this timing exactly as it was.
-    readonly property int expandDuration: reducedMotion ? 0 : 220
-    readonly property int collapseDuration: reducedMotion ? 0 : 180
     readonly property int feedbackDuration: reducedMotion ? 0 : 100
     // The collapsed pill: a fixed-width notch that never depends on title
     // length, so the window it lives in never resizes on metadata change.
@@ -99,8 +95,7 @@ QtObject {
     readonly property int pillMinHeight: 24
     // The switcher row between the pill and the expanded content.
     readonly property int bandSwitcher: target + small
-    // The single window-height authority for island mode, mirroring
-    // panelHeight() for the legacy compact/expanded window.
+    // The single height authority for an island with the player bands.
     function islandHeight(w) {
         return bandSwitcher + panelHeight(w);
     }
@@ -110,8 +105,7 @@ QtObject {
     function islandWindowHeight(w) { return islandHeight(w) + morphSlack; }
     // Island-only morph: boring.notch's open and close springs as SwiftUI
     // (response s, damping fraction) pairs, played through qml/Motion.js.
-    // The peek bloom uses the same pair. Only IslandSurface reads these,
-    // never the legacy panel.
+    // The peek bloom uses the same pair.
     readonly property real openResponse: 0.42
     readonly property real openDamping: 0.8
     readonly property real closeResponse: 0.45
@@ -186,7 +180,7 @@ QtObject {
     // The notch's rule: text, tabs and filled controls stay neutral, and the
     // artwork colour reaches only graphics (the spectrum, the slider, the
     // hairline and the glow), lifted to a vibrance floor so a muddy cover
-    // still lights them up. The legacy panel keeps its tinted chrome.
+    // still lights them up.
     property bool neutralChrome: false
     readonly property bool tintActive: tintEnabled && !highContrast && artColor.a >= 1
     // Bars, the hairline, slider fills and the glow: 3:1 against the surface

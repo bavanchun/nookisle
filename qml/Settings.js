@@ -8,7 +8,7 @@
 // values (the allowed words of an enum, or of each list item), section,
 // label and help, and optionally unit (shown after a number's value).
 // store says where the value lives: "shell" is the host's
-// shell.json bar entry, where the eleven original booleans have always been;
+// shell.json bar entry, where the retained original booleans live;
 // "file" is the plugin's own settings.json, for every later key.
 
 // The settings window's sidebar, in order. Shortcuts and About hold fixed
@@ -35,8 +35,6 @@ var SCHEMA = [
         label: "High contrast", help: "Opaque surfaces and clear borders" },
     { key: "remoteArtwork", type: "bool", default: false, store: "shell", section: "media",
         label: "Online artwork", help: "Download cover art from the web; a player's local cover file always shows" },
-    { key: "island", type: "bool", default: true, store: "shell", section: "general",
-        label: "Dynamic island", help: "Show the player as a pill over the bar centre" },
     { key: "hud", type: "bool", default: false, store: "shell", section: "hud",
         label: "Level readout", help: "Show volume and brightness changes in the island" },
     { key: "visualizer", type: "bool", default: true, store: "shell", section: "media",
@@ -310,7 +308,7 @@ var REQUIRES = {
 // section has but no group names follows the named groups, unheaded.
 var GROUPS = {
     general: [
-        { label: "Bar", keys: ["autoShow", "island"] },
+        { label: "Bar", keys: ["autoShow"] },
         { label: "Opening", keys: ["openOnHover", "hoverDwell", "leaveGrace", "summonAutoClose", "rememberLastTab", "alwaysShowTabs"] },
         { label: "Gestures", keys: ["enableGestures", "closeGesture", "gestureTravel"] },
         { label: "Displays", keys: ["displayMode", "preferredDisplay", "fullscreenBehavior"] },
@@ -334,7 +332,7 @@ var GROUPS = {
 }
 
 // What a settings row shows for a key: the shell's stored boolean or the
-// schema default for the eleven original keys, the resolved file value for
+// schema default for the original keys, the resolved file value for
 // the rest. Shared by the settings window and the welcome.
 function storedValue(coordinator, key) {
     var spec = entry(key)

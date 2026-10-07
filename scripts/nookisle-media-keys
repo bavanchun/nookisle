@@ -8,8 +8,8 @@ usage() {
   exit 1
 }
 
-# Ask the island whether it shows this key's readout. It says no with hud or
-# island off, while hidden or suppressed, or for a backlight it does not
+# Ask the island whether it shows this key's readout. It says no with hud
+# off, while hidden or suppressed, or for a backlight it does not
 # watch; a disabled plugin or a stopped shell fails at once, which is also no.
 # Either way Omarchy's own command acts and shows its OSD instead.
 #

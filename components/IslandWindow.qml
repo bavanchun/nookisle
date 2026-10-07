@@ -20,7 +20,7 @@ PanelWindow {
     readonly property string screenName: screenInfo ? String(screenInfo.name) : ""
     property var tokens: null
     property var coordinator: null
-    // True while Panel shows its island at all: island mode, admitted,
+    // True while Panel shows its island at all: admitted,
     // autoShow on.
     property bool shown: false
     property var hudModel: null

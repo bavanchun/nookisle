@@ -356,8 +356,8 @@ Item {
         busyDeadlines = busyDeadlines.concat([Date.now() + busyTimeout]).sort(function (a, b) { return a - b; });
         scheduleBusyExpiry();
     }
-    // The host's safety resets: the lock screen or a panel disallow, leaving
-    // island mode, a screen change and fullscreen. They bypass the close
+    // The host's safety resets: the lock screen, a panel disallow,
+    // a screen change and fullscreen. They bypass the close
     // guard and drop every hold, so the island never shows over a lock
     // screen or carries a menu's busy state into another mode or screen.
     function resetForHost() {
@@ -851,7 +851,10 @@ Item {
         var blank = ["none", "hudIcon", "hudLevel"];
         return blank.indexOf(left) >= 0 && blank.indexOf(right) >= 0 && blank.indexOf(centre) >= 0;
     }
+    property bool closedContentInitialized: false
     function updateClosedContent() {
+        if (!closedContentInitialized)
+            return;
         if (modelLeft === shownLeft && modelRight === shownRight && modelCentre === shownCentre
             && modelMinimal === shownMinimal) {
             if (contentOut.running) {
@@ -885,8 +888,10 @@ Item {
     }
     // The wings hold the content the model asks for: a title handoff waits
     // for this, since the content's own fade covers a swap.
-    readonly property bool closedContentSettled: contentFade >= 1 && modelLeft === shownLeft
+    readonly property bool closedContentSettled: closedContentInitialized && contentFade >= 1 && modelLeft === shownLeft
         && modelRight === shownRight && modelCentre === shownCentre && modelMinimal === shownMinimal
+    // Runtime changes stay synchronous; construction initializes the content
+    // only after all model bindings have settled.
     onModelLeftChanged: updateClosedContent()
     onModelRightChanged: updateClosedContent()
     onModelCentreChanged: updateClosedContent()
@@ -934,9 +939,10 @@ Item {
     Component.onCompleted: {
         expansion = expanded ? 1 : 0;
         peekAmount = peekShowing ? 1 : 0;
-        shownLeft = modelLeft;
-        shownRight = modelRight;
-        shownCentre = modelCentre;
+        var left = modelLeft, right = modelRight, centre = modelCentre, minimal = modelMinimal;
+        if (left !== shownLeft || right !== shownRight || centre !== shownCentre || minimal !== shownMinimal)
+            swapClosedContent();
+        closedContentInitialized = true;
     }
     // The peek bloom. A peek never outlives an expansion, whoever owns the
     // model: the expanded card already shows everything the peek would.
@@ -986,8 +992,7 @@ Item {
     // the island does not stay open for good.
     onBusyCountChanged: if (busyCount === 0 && expanded && !pointerInside && !drop.containsDrag)
         grace.restart()
-    // The header gear opens the settings window in one click; the legacy
-    // panel keeps the inline settings view. Returns whether it opened.
+    // The header gear opens the settings window in one click.
     // The header gear opened (or raised) the settings window: the host
     // lends it the keyboard, even when the window was already open.
     signal settingsOpened()
@@ -1096,8 +1101,7 @@ Item {
     // the notch shares one white. A theme accent or error that already reads
     // on black is kept; one that does not falls back to the dark-surface
     // default. Sizes, radius and the artwork tint carry over; the tint then
-    // reaches only graphics (neutralChrome). The legacy panel keeps the
-    // host's own tokens.
+    // reaches only graphics (neutralChrome).
     // The island's sans faces, most preferred first. None is a dependency:
     // the first one installed wins, and sans-serif stands in for all.
     readonly property var uiFontFamilies: ["Inter", "Roboto", "Noto Sans"]
