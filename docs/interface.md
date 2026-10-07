@@ -475,8 +475,8 @@ The player, after boring.notch's:
 - **Scrubber.** The position slider across the column, with the elapsed and
   total times under its ends in tabular figures. Without a source there is no
   scrubber and no button row. Its track is 5px, springing (0.35, 0.7) to 9px while dragged, and its fill
-  follows `sliderColor`: white (the default), the artwork colour (`albumArt`),
-  or the theme accent.
+  follows `sliderColor`: the artwork colour (`albumArt`, the default for a new
+  install), white, or the theme accent. The elapsed and total times stay neutral.
 - **Buttons** ([MusicToolbar.qml](../components/MusicToolbar.qml)). The
   `musicControlSlots` setting lists up to five of `shuffle`, `previous`,
   `playPause`, `next`, `repeat`, `volume`, `favorite`, `back15`, `forward15`

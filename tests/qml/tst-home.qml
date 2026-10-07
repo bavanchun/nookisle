@@ -950,11 +950,11 @@ TestCase {
         design.artColor = "#e36954";
         var home = createTemporaryObject(homeComponent, test);
         var fill = findChild(findChild(home, "progressControl"), "intentSliderFill");
-        compare(fill.color, Qt.color("#ffffff"), "white by default");
+        compare(fill.color, design.tint, "the cover colour by default");
         compare(findChild(findChild(home, "progressControl"), "intentSliderHandle").color, fill.color,
             "the knob matches the fill");
-        home.settings = Object.assign(Settings.defaults("file"), { sliderColor: "albumArt" });
-        compare(fill.color, design.tint);
+        home.settings = Object.assign(Settings.defaults("file"), { sliderColor: "white" });
+        compare(fill.color, Qt.color("#ffffff"));
         home.settings = Object.assign(Settings.defaults("file"), { sliderColor: "accent" });
         compare(fill.color, design.accent);
     }

@@ -60,7 +60,7 @@ identifiers, and the retired `showIdleFace` switch).
 | `gestureTravel` | int (px) | 200 | 100–300 |
 | `summonAutoClose` | int (ms) | 3000 | 0–10000, 0 never |
 | `lightingEffect` | bool | true | Light the player with a soft glow of the cover while music plays |
-| `sliderColor` | enum | `white` | `white`, `albumArt`, `accent` |
+| `sliderColor` | enum | `albumArt` | `white`, `albumArt`, `accent`; the default reaches only installs that never saved a setting, so an existing install keeps its stored `white` until it is changed in Settings (Home, Progress colour) |
 | `peekStyle` | enum | `standard` | `standard` (art and spectrum card), `inline` (title and artist beside the closed notch) |
 | `musicControlSlots` | list | `shuffle`, `previous`, `playPause`, `next`, `repeat` | up to 5 of the button kinds, or `none`; the editor can reset this list to its defaults |
 | `musicControlSlotLimit` | int | 5 | 3–5 |

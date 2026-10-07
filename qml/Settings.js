@@ -100,7 +100,7 @@ var SCHEMA = [
         label: "Summon auto-close", help: "Milliseconds before a shortcut-opened island closes by itself; 0 never" },
     { key: "lightingEffect", type: "bool", default: true, store: "file", section: "media",
         label: "Artwork glow", help: "Light the player with a soft glow of the cover while music plays" },
-    { key: "sliderColor", type: "enum", default: "white", values: ["white", "albumArt", "accent"], store: "file", section: "media",
+    { key: "sliderColor", type: "enum", default: "albumArt", values: ["white", "albumArt", "accent"], store: "file", section: "media",
         label: "Progress colour", help: "White, the cover's colour, or the theme accent" },
     { key: "peekStyle", type: "enum", default: "standard", values: ["standard", "inline"], store: "file", section: "media",
         label: "Track peek style", help: "A compact card, or title and artist beside the closed notch" },

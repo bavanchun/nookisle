@@ -433,8 +433,7 @@ TestCase {
         compare(ink.primaryLabel, design.notchColor);
         compare(ink.cardSurface, design.notchColor, "no wash into the black");
         compare(ink.tintText, ink.text);
-        compareColor(findChild(surface, "intentSliderFill").color, Qt.color("#ffffff"), 1 / 255,
-            "the scrubber starts white");
+        compare(findChild(surface, "intentSliderFill").color, ink.tint, "the scrubber is a graphic, so it takes the tint");
         compare(findChild(surface, "keyFocusRing").border.color, design.accent);
         verify(ink.tint !== ink.accent, "graphics still take the tint");
     }
@@ -683,6 +682,22 @@ TestCase {
         compare(findChild(surface, "spectrumBar2").color, surface.ink.tint);
         design.artColor = "transparent";
         compare(findChild(surface, "progressHairlineFill").color, design.accent);
+    }
+    // The scrubber's fill is the cover colour by default, so the closed
+    // notch's hairline and the open panel's progress bar read as one accent.
+    function test_progressFillFollowsTheCoverByDefault() {
+        design.artColor = "#e2402e";
+        var surface = createTemporaryObject(surfaceComponent, test);
+        surface.expandTo("home");
+        var progress = findChild(surface, "progressControl");
+        verify(progress);
+        verify(Qt.colorEqual(progress.fillColor, surface.ink.tint), "the fill is the tint");
+        verify(!Qt.colorEqual(progress.fillColor, "#ffffff"), "not white");
+        design.artColor = "transparent";
+        verify(Qt.colorEqual(progress.fillColor, surface.ink.accent), "no art: the accent");
+        facade.fileSettings = ({ sliderColor: "white" });
+        design.artColor = "#e2402e";
+        verify(Qt.colorEqual(progress.fillColor, "#ffffff"), "a stored white stays white");
     }
     function test_glowRingsConcentricAndGated() {
         var e = endpoint("");

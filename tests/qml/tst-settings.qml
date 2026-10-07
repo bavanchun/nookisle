@@ -72,7 +72,7 @@ TestCase {
         compare(all.closeGesture, true)
         compare(all.gestureTravel, 200)
         compare(all.summonAutoClose, 3000)
-        compare(all.sliderColor, "white")
+        compare(all.sliderColor, "albumArt")
         compare(all.peekStyle, "standard")
         compare(all.pauseGrace, 3000)
         compare(Settings.entry("pauseGrace").label, "Media inactivity timeout")
@@ -280,7 +280,7 @@ TestCase {
             alwaysShowTabs: true, followDesktopMotion: true, showSettingsIcon: true,
             uiFont: "sans", openShelfByDefault: true,
             enableGestures: true, closeGesture: true, gestureTravel: 200,
-            summonAutoClose: 3000, lightingEffect: true, sliderColor: "white",
+            summonAutoClose: 3000, lightingEffect: true, sliderColor: "albumArt",
             peekStyle: "standard",
             musicControlSlots: ["shuffle", "previous", "playPause", "next", "repeat"],
             musicControlSlotLimit: 5, pauseGrace: 3000, musicLiveActivity: true,
