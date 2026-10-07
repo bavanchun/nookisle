@@ -142,7 +142,7 @@ if(NOOKISLE_HOST_TESTS)
         set_tests_properties(qml-${ui_test} PROPERTIES TIMEOUT 30)
     endforeach()
     # The surface suite waits on real hover, grace and spring timings.
-    set_tests_properties(qml-island-surface PROPERTIES TIMEOUT 60)
+    set_tests_properties(qml-island-surface PROPERTIES TIMEOUT 120)
     # Against a local fixture server the wrapper starts and stops; the
     # lyrics source never reaches the real network in tests.
     add_test(NAME qml-lyrics COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-lyrics.sh

@@ -440,9 +440,10 @@ shows falls back to Home. A tap on Home's lyric line opens it.
 [LyricsSource.qml](../components/LyricsSource.qml), which asks LRCLIB only
 while Home or the Lyrics view is open (see [privacy](privacy.md#lyrics)).
 
-**Synced lines.** Under a header with the 40px artwork (with the tint glow),
-the title, the artists and a tinted progress hairline, the view follows the
-song:
+**Synced lines.** The view follows the song across its whole card, with a
+tinted progress hairline and a footer under the lines: the 20px cover, "Title
+· Artists" and, on the right, "Lyrics from LRCLIB" (with nothing playing, only
+the attribution):
 
 - the current line, large (`lyricCurrentSize` + 4) and semi-bold in the
   card's text colour, wrapping to two lines;
@@ -450,8 +451,11 @@ song:
 - the next line in the title size, slightly dimmed, then the one after it
   fainter still.
 
-The current line rests a little above the middle of the stage, and the
-card's own colour fades the lines out at the stage's top and bottom edges.
+The current line rests at 40 % of the stage, so the previous line, the
+current line and the next line are all fully visible (a long current line
+wraps to two lines), and the card's own colour fades the lines out at the
+stage's top and bottom edges. In high contrast every neighbouring line is at
+least 0.66 opaque.
 When the song moves on by a line, the whole group glides up one step while the
 next line grows into the current one (scale and brightness), over 360 ms
 `OutCubic` (twice `lyricLineDuration`); a seek or a first line fades in with a
@@ -480,7 +484,11 @@ A busy LRCLIB is asked once more after 2 s before the error shows, and after a
 "not found" the lookup tries the track without its album and without a remaster
 mark or "(feat. …)" before it gives up. Try again appears for errors only: a
 "not found" is kept for the session, and turning lyrics off and on clears it.
-The footer always reads "Lyrics from LRCLIB".
+The footer always carries "Lyrics from LRCLIB".
+
+On Home the lyric line reads the same state in shorter words ("No synced
+lyrics", "Unsynced lyrics only", "Lyrics unavailable" for an error), stays
+blank for the first second of a lookup, and offers the view's detail on hover.
 
 ## Shelf
 

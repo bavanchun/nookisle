@@ -65,6 +65,8 @@ TestCase {
         property var lines: []
         property int currentIndex: -1
         property var meta: ({ title: "Afterglow" })
+        readonly property string displayState: !lyricsEnabled ? "off"
+            : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
         function retry() {}
     }
     Component {

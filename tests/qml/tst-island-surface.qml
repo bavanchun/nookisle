@@ -127,6 +127,8 @@ TestCase {
         property int currentIndex: -1
         property var meta: ({ title: "Afterglow" })
         property int retries: 0
+        readonly property string displayState: !lyricsEnabled ? "off"
+            : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
         function retry() {
             retries++;
         }
@@ -1782,7 +1784,7 @@ TestCase {
         verify(findChild(view, "lyricsMessage").visible);
         verify(!findChild(view, "lyricsLines").visible, "a state replaces the lines");
         compare(findChild(view, "lyricsRetry").visible, data.retry === true);
-        compare(findChild(view, "lyricsHeader").visible, !data.noEndpoint);
+        compare(findChild(view, "lyricsTrack").visible, !data.noEndpoint, "the footer names the track when there is one");
         verify(findChild(view, "lyricsAttribution").visible, "the attribution always shows");
         if (data.retry) {
             mouseClick(findChild(view, "lyricsRetry"));
@@ -1797,11 +1799,81 @@ TestCase {
         var view = lyricsView(surface);
         compare(view.height, design.openHeight - design.bandSwitcher, "the view fills the open body under the switcher");
         var stage = findChild(view, "lyricsStage");
-        var footer = findChild(view, "lyricsAttribution");
-        verify(stage.y + stage.height <= footer.y, "the lines never run into the attribution");
+        var hairline = findChild(view, "lyricsHairline");
+        var footer = findChild(view, "lyricsFooter");
+        verify(stage.height >= 100, "the stage is tall enough for three lines: " + stage.height);
+        verify(stage.y + stage.height <= hairline.y, "the lines stop above the progress hairline");
+        verify(hairline.y + hairline.height <= footer.y, "the hairline sits above the footer");
+        verify(footer.y + footer.height <= view.height, "the footer is inside the view");
+        verify(findChild(view, "lyricsAttribution").x + findChild(view, "lyricsAttribution").width <= footer.width);
+        verify(!findChild(view, "lyricsHeader"), "the 48 px header is gone");
+    }
+    // The line, fully inside the stage, in the stage's own coordinates.
+    function insideStage(line, stage) {
+        var top = line.mapToItem(stage, 0, 0).y;
+        return top >= 0 && top + line.height <= stage.height;
+    }
+    function test_lyricsLadderIsVisible() {
+        var lines = fixtureLines().slice(0, 5);
+        lyricsFixture.lyricsState = "ready";
+        lyricsFixture.lines = lines;
+        lyricsFixture.currentIndex = 2;
+        var view = lyricsView(lyricsSurface());
+        var stage = findChild(view, "lyricsStage");
+        var names = ["lyricsPreviousLine", "lyricsCurrentLine", "lyricsNextLine"];
+        for (var i = 0; i < names.length; ++i) {
+            var line = findChild(view, names[i]);
+            verify(line.visible && line.text !== "", names[i] + " shows");
+            verify(insideStage(line, stage), names[i] + " is fully inside the stage");
+        }
+        verify(!findChild(view, "lyricsEarlierLine").visible, "no sliver of the earlier line under the top fade");
+        // A long line wraps to two lines and still fits.
+        var longer = lines.slice();
+        longer[2] = { t: 19, text: "Every window along the avenue holds a different song, and none of them ends before the next one starts" };
+        lyricsFixture.lines = longer;
+        var current = findChild(view, "lyricsCurrentLine");
+        tryCompare(current, "lineCount", 2, 1000, "a long line wraps");
+        verify(insideStage(current, stage), "the wrapped line stays inside the stage");
+        verify(insideStage(findChild(view, "lyricsPreviousLine"), stage));
+    }
+    function test_lyricsHighContrast() {
+        lyricsFixture.lyricsState = "ready";
+        lyricsFixture.lines = fixtureLines();
+        lyricsFixture.currentIndex = 5;
+        design.highContrast = true;
+        var view = lyricsView(lyricsSurface());
+        var stage = findChild(view, "lyricsStage");
+        var seen = 0;
+        var names = ["lyricsEarlierLine", "lyricsPreviousLine", "lyricsNextLine", "lyricsLaterLine"];
+        for (var i = 0; i < names.length; ++i) {
+            var line = findChild(view, names[i]);
+            if (!line.visible || !insideStage(line, stage))
+                continue;
+            seen++;
+            verify(line.opacity >= 0.66, names[i] + " reads at 0.66 or more: " + line.opacity);
+            verify(Qt.colorEqual(line.color, design.text), names[i] + " is in the text colour");
+        }
+        verify(seen >= 2, "the previous and next lines were checked");
+        design.highContrast = false;
+        compare(findChild(view, "lyricsPreviousLine").opacity, 0.55, "ordinary contrast keeps the quiet neighbours");
+    }
+    function test_lyricsLadderWithLargeFonts() {
+        design.theme = ({ titleSize: 18, bodySize: 15, captionSize: 13 });
+        var lines = fixtureLines();
+        lines[2] = { t: 19, text: "Every window along the avenue holds a different song, and none of them ends before the next one starts" };
+        lyricsFixture.lyricsState = "ready";
+        lyricsFixture.lines = lines;
+        lyricsFixture.currentIndex = 2;
+        var view = lyricsView(lyricsSurface());
+        var stage = findChild(view, "lyricsStage");
+        var footer = findChild(view, "lyricsFooter");
+        var current = findChild(view, "lyricsCurrentLine");
+        verify(insideStage(current, stage), "the current line is inside the stage: " + current.height);
+        verify(insideStage(findChild(view, "lyricsPreviousLine"), stage), "the previous line is inside the stage");
+        verify(stage.y + stage.height <= footer.y, "the footer does not overlap the stage");
         verify(footer.y + footer.height <= view.height);
-        var header = findChild(view, "lyricsHeader");
-        verify(header.y + header.height <= stage.y);
+        lyricsFixture.currentIndex = 1;
+        verify(insideStage(findChild(view, "lyricsCurrentLine"), stage), "a one-line current line fits as well");
     }
     function test_calendarFitsTheFixedOpenHeight() {
         facade.fileSettings = ({ showCalendar: true });

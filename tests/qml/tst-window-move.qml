@@ -90,6 +90,8 @@ TestCase {
         property var lines: [{ time: 1, text: "First line" }, { time: 70, text: "Second line" }]
         property int currentIndex: 1
         property var meta: ({ title: "Test track" })
+        readonly property string displayState: !lyricsEnabled ? "off"
+            : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
         function retry() {}
     }
     // Stands in for the camera device; tests never open it.

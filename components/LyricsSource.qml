@@ -55,6 +55,17 @@ QtObject {
     // "timeout" | "too-large" | "busy" | "rate-limited" | "network" while
     // lyricsState is "error".
     property string errorCode: ""
+    // The one name every view reads: lyricsState with the cases a view
+    // would otherwise tell apart itself. "off" while lyrics are disabled;
+    // idle with a track to look up is "loading", idle without one (a source
+    // with no title or no artist) is "no-meta".
+    readonly property string displayState: {
+        if (!lyricsEnabled)
+            return "off";
+        if (lyricsState === "idle")
+            return meta ? "loading" : "no-meta";
+        return lyricsState;
+    }
     property var lines: []
     readonly property int currentIndex: Lyrics.lineAt(lines, positionSeconds)
     readonly property var meta: Lyrics.trackMeta(endpoint)
