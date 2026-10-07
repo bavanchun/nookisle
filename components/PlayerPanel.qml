@@ -481,6 +481,7 @@ Item {
                 id: sourceChoice
                 objectName: "homeSourceButton"
                 tokens: root.tokens
+                tonal: true
                 text: "Sources"
                 accessibleLabel: "Choose a source"
                 onActivated: root.sourcesRequested()

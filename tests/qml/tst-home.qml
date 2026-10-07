@@ -352,6 +352,19 @@ TestCase {
         home.appIcon = "file:///nonexistent/icon.png";
         tryCompare(badge, "visible", false, 1000, "an icon that does not load hides it");
     }
+    // Disconnected, Retry is the one filled control and Sources is tonal.
+    function test_retryIsTheOnlyFilledActionWhileDisconnected() {
+        facade.selectedEndpoint = null;
+        facade.endpoints = [];
+        facade.uiAllowed = false;
+        var home = createTemporaryObject(homeComponent, test);
+        var retry = findChild(home, "homeRetryButton");
+        verify(retry.visible);
+        verify(retry.primary);
+        verify(!retry.tonal);
+        verify(findChild(home, "homeSourceButton").tonal);
+        facade.uiAllowed = true;
+    }
     function test_sourceChooserAndRetryInEmptyStates() {
         facade.selectedEndpoint = null;
         facade.endpoints = [];
@@ -359,6 +372,8 @@ TestCase {
         var choose = findChild(home, "homeSourceButton");
         var retry = findChild(home, "homeRetryButton");
         verify(choose.visible);
+        verify(choose.tonal, "Sources is a tonal action");
+        verify(!choose.primary);
         verify(!retry.visible, "a healthy empty source list needs no reconnect warning");
         compare(findChild(home, "playerStatus").text, "Open Spotify, or play music in your browser.");
         verify(home.focusControls());

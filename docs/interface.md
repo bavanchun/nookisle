@@ -167,6 +167,10 @@ optimistically changes playback or retries a toggle.
 [IslandButton.qml](../components/IslandButton.qml) owns focus, press, disabled
 and pending feedback; its primary focus outline remains distinct from the fill,
 and pending controls do not suggest that another press sends another command.
+A `tonal` button is the quiet action for an empty state ("Sources" on Home,
+"Add calendar" in the calendar): a pill washed with the ink at 0.14, 0.20 when
+hovered and 0.24 when pressed. The filled primary style stays for the one
+action that fixes an error (Retry, Try again).
 
 Empty, unavailable pin, helper failure, and unsupported controls have explicit
 states. A disconnected helper removes playable metadata and offers Retry;

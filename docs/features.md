@@ -667,7 +667,7 @@ midnight does the same. Beside the mirror it uses its
 - Showing today, the list opens at the event happening now, else the next
   one still ahead (`autoScrollToNextEvent`).
 - An empty day says "Nothing on today" (or "on this day"). With no calendar
-  configured at all it says "No calendars yet" with an Add a calendar button,
+  configured at all it says "No calendars yet" with a tonal Add calendar button,
   which opens the settings window on Calendar.
 - The dimmed shades of its white text (the year, weekdays, times, completed
   reminders) turn fully white in high contrast.

@@ -165,6 +165,12 @@ TestCase {
             opener: function (url) { opened = opened.concat([url]) }
         }
     }
+    Component {
+        id: notchBackdrop
+        Rectangle {
+            color: design.notchColor
+        }
+    }
     // The panel between two other Tab stops, as on Home.
     Component {
         id: tabHostComponent
@@ -428,6 +434,31 @@ TestCase {
             panel.sources = [test.localSource]
             verify(!findChild(panel, "calendarNone").visible)
             verify(findChild(panel, "calendarEmpty").visible, "with a calendar, an empty day says so")
+        }
+        // The one action in the empty state is a tonal button: a visible
+        // wash at rest, with a gap's room under the line above it.
+        function test_empty_state_action_is_tonal() {
+            fakeSource.items = []
+            var panel = createTemporaryObject(panelComponent, test, { sources: [] })
+            var add = findChild(panel, "calendarAddButton")
+            verify(add.tonal, "Add calendar is tonal")
+            verify(!add.primary, "the filled style stays for the one action that fixes an error")
+            compare(add.text, "Add calendar")
+            compare(add.accessibleLabel, "Add a calendar in the settings")
+            verify(add.background.color.a > 0, "a visible fill at rest: " + add.background.color)
+            compare(add.height, design.target)
+            compare(add.background.radius, add.height / 2)
+            compare(findChild(panel, "calendarNone").spacing, design.gap)
+        }
+        // The empty state on the notch's black, for the before/after record.
+        function test_empty_state_preview() {
+            fakeSource.items = []
+            var host = createTemporaryObject(notchBackdrop, test, { width: 480, height: 190 })
+            var panel = createTemporaryObject(panelComponent, host, { sources: [] })
+            host.width = panel.width
+            host.height = panel.height
+            waitForRendering(host)
+            grabImage(host).save(Qt.resolvedUrl("../../build/ui-preview/calendar-empty.png").toString().slice(7))
         }
         // High contrast draws the panel's dimmed text fully white.
         function test_panel_text_is_opaque_in_high_contrast() {
