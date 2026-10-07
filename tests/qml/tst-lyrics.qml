@@ -105,7 +105,17 @@ TestCase {
             }
 
             function respond(route) {
-                if (route === "get") {
+                var nth = requests.length;
+                if (route === "busy-once") {
+                    if (nth === 1)
+                        failed("busy");
+                    else
+                        finished(200, JSON.stringify(test.bodies["/api/get"]));
+                } else if (route === "busy-always") {
+                    failed("busy");
+                } else if (route === "limited") {
+                    failed("rate-limited");
+                } else if (route === "get") {
                     finished(200, JSON.stringify(test.bodies["/api/get"]));
                 } else if (route === "instrumental") {
                     finished(200, JSON.stringify(test.bodies["/api/instrumental"]));
@@ -264,6 +274,17 @@ TestCase {
         compare(error.code, "network");
         verify(!error.cache, "transport errors are never cached");
         compare(Lyrics.interpret(500, "").state, "error");
+        compare(Lyrics.interpret(500, "").code, "network");
+    }
+    function test_interpretNamesARefusal() {
+        var busy = Lyrics.interpret(503, "");
+        compare(busy.state, "error");
+        compare(busy.code, "busy");
+        verify(!busy.cache);
+        var limited = Lyrics.interpret(429, "");
+        compare(limited.state, "error");
+        compare(limited.code, "rate-limited");
+        verify(!limited.cache);
     }
 
     // LyricsSource against the local fixture.
@@ -478,5 +499,108 @@ TestCase {
         source.retry();
         tryCompare(source, "lyricsState", "none", 3000);
         compare(requestCount(), before + 1, "Try again really asks again");
+    }
+
+    // A refusal (LRCLIB shedding load) is retried once, then reported as such.
+    function test_busyOnceRetriesAndLoads() {
+        var before = requestCount();
+        var source = makeSource("busy-once", undefined, { retryMs: 30 });
+        source.wanted = true;
+        compare(source.lyricsState, "loading");
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 2, "one extra request");
+        compare(source.errorCode, "");
+        compare(source.cache.length, 1, "the answer is cached once it is conclusive");
+        compare(source.fetcher.requests[0], source.fetcher.requests[1], "the retry asks the same question");
+    }
+    function test_busyTwiceEndsInErrorAndCachesNothing() {
+        var before = requestCount();
+        var source = makeSource("busy-always", undefined, { retryMs: 30 });
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "error", 3000);
+        compare(source.errorCode, "busy");
+        compare(requestCount(), before + 2, "never more than one retry");
+        compare(source.cache.length, 0, "an error is never cached");
+        compare(source.active, null);
+        verify(!source.retryTimer.running);
+        wait(150);
+        compare(requestCount(), before + 2);
+    }
+    function test_rateLimitedIsNotRetried() {
+        var before = requestCount();
+        var source = makeSource("limited", undefined, { retryMs: 30 });
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "error", 3000);
+        compare(source.errorCode, "rate-limited");
+        wait(150);
+        compare(requestCount(), before + 1, "only a busy refusal is retried");
+    }
+    function test_loadingShowsWhileTheRetryWaits() {
+        var source = makeSource("busy-once", undefined, { retryMs: 400 });
+        source.wanted = true;
+        tryVerify(function () { return source.retryTimer.running; }, 2000);
+        compare(source.lyricsState, "loading");
+        compare(source.errorCode, "");
+        source.refresh();
+        compare(source.fetcher.requests.length, 1, "asking again while it waits adds nothing");
+        tryCompare(source, "lyricsState", "ready", 3000);
+    }
+    function test_closingTheViewDuringTheRetryWaitSendsNothing() {
+        var before = requestCount();
+        var source = makeSource("busy-once", undefined, { retryMs: 150 });
+        source.wanted = true;
+        tryVerify(function () { return source.retryTimer.running; }, 2000);
+        source.wanted = false;
+        verify(!source.retryTimer.running, "closing cancels the retry");
+        compare(source.lyricsState, "idle");
+        wait(300);
+        compare(requestCount(), before + 1, "nothing further is sent after closing");
+        compare(source.cache.length, 0);
+    }
+    function test_lyricsOffDuringTheRetryWaitSendsNothing() {
+        var before = requestCount();
+        var source = makeSource("busy-once", undefined, { retryMs: 150 });
+        source.wanted = true;
+        tryVerify(function () { return source.retryTimer.running; }, 2000);
+        source.lyricsEnabled = false;
+        verify(!source.retryTimer.running);
+        compare(source.active, null);
+        wait(300);
+        compare(requestCount(), before + 1);
+        compare(source.cache.length, 0);
+        compare(source.lyricsState, "idle");
+    }
+    function test_trackChangeDuringTheRetryWaitDropsTheRetry() {
+        var before = requestCount();
+        var source = makeSource("busy-once", undefined, { retryMs: 100 });
+        source.wanted = true;
+        tryVerify(function () { return source.retryTimer.running; }, 2000);
+        source.endpoint = track("Another Song");
+        verify(!source.retryTimer.running, "the old track's retry is gone");
+        wait(250);
+        compare(requestCount(), before + 1, "the old track is not asked again");
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 2);
+        verify(source.fetcher.requests[1].indexOf("Another%20Song") > 0, "the second request is for the new track");
+        compare(source.cache.length, 1);
+    }
+    function test_destructionDuringTheRetryWaitSendsNothing() {
+        var before = requestCount();
+        var source = makeSource("busy-once", undefined, { retryMs: 100 });
+        source.wanted = true;
+        tryVerify(function () { return source.retryTimer.running; }, 2000);
+        source.destroy();
+        wait(300);
+        compare(requestCount(), before + 1);
+    }
+    function test_tryAgainAfterABusyErrorAsksAgain() {
+        var source = makeSource("busy-always", undefined, { retryMs: 30 });
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "error", 3000);
+        compare(source.errorCode, "busy");
+        source.endpointUrl = url("get");
+        source.retry();
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(source.errorCode, "");
     }
 }

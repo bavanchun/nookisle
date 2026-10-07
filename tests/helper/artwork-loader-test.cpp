@@ -127,6 +127,12 @@ private slots:
 
         parsed = Island::parseLyricsResponse("HTTP/1.1 500 Internal Server Error\r\n\r\n");
         QCOMPARE(parsed.error, "network");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nRetry-After: 1\r\nContent-Length: 2\r\n\r\n{}");
+        QCOMPARE(parsed.error, "busy");
+
+        parsed = Island::parseLyricsResponse("HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nRetry-After: 30\r\nContent-Length: 2\r\n\r\n{}");
+        QCOMPARE(parsed.error, "rate-limited");
     }
     void repeatedHeadersPolicy() {
         const QByteArray cfHeaders =
@@ -789,8 +795,8 @@ public:
 class ArtworkNetworkTest : public QObject {
     Q_OBJECT
     QTemporaryDir runtime;
-    QSslCertificate certificate;
-    QSslKey key;
+    QSslCertificate certificate, otherCertificate;
+    QSslKey key, otherKey;
     QByteArray bytes;
     void prepare(ArtworkTlsServer &server) {
         server.certificate = certificate;
@@ -845,6 +851,26 @@ private slots:
         certificate = QSslCertificate(certFile.readAll());
         key = QSslKey(keyFile.readAll(), QSsl::Rsa);
         QVERIFY(!certificate.isNull() && !key.isNull());
+        // A second valid certificate for the other fixture address, trusted by
+        // the same --ca-file, so a redirect between the two hosts fails only
+        // for the policy under test and never for a certificate mismatch.
+        QProcess otherOpenssl;
+        otherOpenssl.start("openssl", {"req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+            "-subj", "/CN=1.1.1.2", "-addext", "subjectAltName=IP:1.1.1.2",
+            "-keyout", runtime.filePath("other-key.pem"), "-out", runtime.filePath("other-cert.pem")});
+        QVERIFY(otherOpenssl.waitForFinished(10000));
+        QCOMPARE(otherOpenssl.exitCode(), 0);
+        QFile otherCertFile(runtime.filePath("other-cert.pem")), otherKeyFile(runtime.filePath("other-key.pem"));
+        QVERIFY(otherCertFile.open(QIODevice::ReadOnly));
+        QVERIFY(otherKeyFile.open(QIODevice::ReadOnly));
+        const auto otherCertPem = otherCertFile.readAll();
+        otherCertificate = QSslCertificate(otherCertPem);
+        otherKey = QSslKey(otherKeyFile.readAll(), QSsl::Rsa);
+        QVERIFY(!otherCertificate.isNull() && !otherKey.isNull());
+        QFile trustFile(runtime.filePath("cert.pem"));
+        QVERIFY(trustFile.open(QIODevice::Append));
+        QVERIFY(trustFile.write(otherCertPem) == otherCertPem.size());
+        trustFile.close();
         QImage image(1024, 1024, QImage::Format_ARGB32);
         image.fill(Qt::darkBlue);
         QBuffer output(&bytes);
@@ -1003,6 +1029,56 @@ private slots:
             return "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body>Not JSON</body></html>";
         };
         const auto result = runLyrics(url(server, "/wrong-type"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error network\n");
+    }
+    void lyricsFollowsSameHostRedirectButRefusesAnotherHost() {
+        const QByteArray json = "{\"syncedLyrics\":\"[00:01.00]test\"}";
+        ArtworkTlsServer server, other;
+        prepare(server);
+        other.certificate = otherCertificate;
+        other.key = otherKey;
+        QVERIFY(other.listen(QHostAddress::AnyIPv4));
+        server.reply = [&](const QByteArray &request) -> QByteArray {
+            if (request.startsWith("GET /landed "))
+                return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                    + QByteArray::number(json.size()) + "\r\n\r\n" + json;
+            if (request.startsWith("GET /same-host "))
+                return "HTTP/1.1 302 Found\r\nLocation: https://1.1.1.1:" + QByteArray::number(server.serverPort())
+                    + "/landed\r\n\r\n";
+            return "HTTP/1.1 302 Found\r\nLocation: https://1.1.1.2:" + QByteArray::number(other.serverPort())
+                + "/landed\r\n\r\n";
+        };
+        other.reply = [&](const QByteArray &) {
+            return "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                + QByteArray::number(json.size()) + "\r\n\r\n" + json;
+        };
+        auto result = runLyrics(url(server, "/same-host"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "ok 200\n" + json);
+
+        result = runLyrics(url(server, "/other-host"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error network\n");
+        QCOMPARE(other.requests.size(), 0);
+    }
+    void lyricsReportsBusyAndRateLimitedRefusals() {
+        ArtworkTlsServer server;
+        prepare(server);
+        server.reply = [](const QByteArray &request) -> QByteArray {
+            if (request.startsWith("GET /busy "))
+                return "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nRetry-After: 1\r\nContent-Length: 2\r\n\r\n{}";
+            if (request.startsWith("GET /limited "))
+                return "HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
+            return "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+        };
+        auto result = runLyrics(url(server, "/busy"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error busy\n");
+        result = runLyrics(url(server, "/limited"));
+        QCOMPARE(result.exitCode, 0);
+        QCOMPARE(result.stdoutData, "error rate-limited\n");
+        result = runLyrics(url(server, "/broken"));
         QCOMPARE(result.exitCode, 0);
         QCOMPARE(result.stdoutData, "error network\n");
     }

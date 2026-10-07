@@ -149,10 +149,15 @@ function lruDrop(list, key) {
 // Reads an LRCLIB /api/get answer. Misses are cached (the track is simply
 // not there, and asking again would not change that); transport errors are
 // not, so Try again can reach the service. `state` is one of "ready",
-// "plain" (only untimed lyrics exist), "instrumental", "none" or "error".
+// "plain" (only untimed lyrics exist), "instrumental", "none" or "error";
+// an error's code is "busy" (503), "rate-limited" (429) or "network".
 function interpret(status, text) {
     if (status === 404)
         return {state: "none", cache: true}
+    if (status === 503)
+        return {state: "error", code: "busy", cache: false}
+    if (status === 429)
+        return {state: "error", code: "rate-limited", cache: false}
     if (status !== 200)
         return {state: "error", code: "network", cache: false}
     var body = null

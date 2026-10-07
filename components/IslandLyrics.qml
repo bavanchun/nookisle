@@ -357,6 +357,8 @@ Item {
             readonly property string errorDetail: root.source && root.source.errorCode === "timeout"
                 ? "LRCLIB did not answer in time"
                 : root.source && root.source.errorCode === "too-large" ? "The answer was too large to read"
+                : root.source && root.source.errorCode === "busy" ? "LRCLIB is busy right now"
+                : root.source && root.source.errorCode === "rate-limited" ? "LRCLIB is limiting requests, try again shortly"
                 : "Check the connection and try again"
             IslandIcon {
                 objectName: "lyricsMessageIcon"

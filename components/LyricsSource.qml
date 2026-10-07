@@ -10,8 +10,9 @@ import "../qml/Lyrics.js" as Lyrics
 // `lyricsEnabled` (the opt-in `lyrics` setting) and `wanted` (the Lyrics view
 // is open) both hold: on opening, or once a track change settles while open.
 // It sends the title, the first artist, the album and the rounded length,
-// and is bounded by a timeout and a streaming size cap. Turning lyrics off
-// aborts it and forgets every cached answer.
+// and is bounded by a timeout and a streaming size cap. When LRCLIB refuses
+// with "busy" the lookup waits `retryMs` and asks once more; any other error
+// ends it. Turning lyrics off aborts it and forgets every cached answer.
 QtObject {
     id: root
     property bool lyricsEnabled: false
@@ -21,6 +22,7 @@ QtObject {
     // Overridden only by the tests, which point at a local fixture server.
     property string endpointUrl: "https://lrclib.net/api/get"
     property int timeoutMs: 8000
+    property int retryMs: 2000
     property int maxBytes: 262144
     property int cacheLimit: 16
     // A track change while the view is open waits this long before it asks,
@@ -45,7 +47,8 @@ QtObject {
     // "idle" | "loading" | "ready" | "plain" | "none" | "instrumental" |
     // "error" | "no-length"
     property string lyricsState: "idle"
-    // "timeout" | "too-large" | "network" while lyricsState is "error".
+    // "timeout" | "too-large" | "busy" | "rate-limited" | "network" while
+    // lyricsState is "error".
     property string errorCode: ""
     property var lines: []
     readonly property int currentIndex: Lyrics.lineAt(lines, positionSeconds)
@@ -56,6 +59,9 @@ QtObject {
     property var cache: []
     property var active: null
     property string activeKey: ""
+    // The request of the lookup in flight, and whether its one retry is spent.
+    property string activeUrl: ""
+    property bool retried: false
 
     function apply(result) {
         root.errorCode = result.state === "error" ? String(result.code || "network") : ""
@@ -70,13 +76,24 @@ QtObject {
     function abort() {
         timeout.stop()
         settle.stop()
+        retryTimer.stop()
         root.active = null
         root.activeKey = ""
+        root.activeUrl = ""
         if (root.fetcher && typeof root.fetcher.cancel === "function")
             root.fetcher.cancel()
     }
     function fail(code) {
         var key = root.activeKey
+        // A busy refusal is asked again once, and only while the answer is
+        // still wanted for the track on screen; the view keeps "loading".
+        if (code === "busy" && !root.retried && root.lyricsEnabled && root.wanted
+                && key === root.trackKey) {
+            root.retried = true
+            timeout.stop()
+            retryTimer.restart()
+            return
+        }
         abort()
         if (key === root.trackKey)
             apply({state: "error", code: code})
@@ -103,7 +120,10 @@ QtObject {
         if (!root.wanted) {
             // Nothing is asked while the view is closed, and a stale answer
             // must not greet the next track when it opens. A lookup already
-            // running for this track may finish and fill the cache.
+            // running for this track may finish and fill the cache, but one
+            // waiting to retry asks nothing more.
+            if (retryTimer.running)
+                abort()
             if (root.trackKey !== root.activeKey)
                 show("idle")
             return
@@ -142,8 +162,12 @@ QtObject {
             return
         root.active = root.fetcher
         root.activeKey = key
-        var url = Lyrics.requestUrl(root.endpointUrl, meta)
-        root.fetcher.start(url)
+        root.retried = false
+        root.activeUrl = Lyrics.requestUrl(root.endpointUrl, meta)
+        send()
+    }
+    function send() {
+        root.fetcher.start(root.activeUrl)
         timeout.restart()
     }
     // Try again from the view. Errors are never cached; a cached miss is
@@ -174,6 +198,16 @@ QtObject {
         interval: root.settleMs
         repeat: false
         onTriggered: root.refresh(true)
+    }
+    property Timer retryTimer: Timer {
+        interval: root.retryMs
+        repeat: false
+        onTriggered: {
+            if (root.active && root.lyricsEnabled && root.wanted && root.activeKey === root.trackKey)
+                root.send()
+            else
+                root.abort()
+        }
     }
     property Timer timeout: Timer {
         interval: root.timeoutMs

@@ -150,6 +150,10 @@ ArtworkResponse parseLyricsResponse(const QByteArray &response) {
         if (!result.redirect.isValid() || result.redirect.isEmpty()) return reject("network");
         return result;
     }
+    // The service refusing to answer right now, named so the caller can retry
+    // or say so rather than report a missing track.
+    if (code == 503) return reject("busy");
+    if (code == 429) return reject("rate-limited");
     if (code != 200 && code != 404) return reject("network");
     const auto encoding = headers.value("content-encoding").toLower();
     if (!encoding.isEmpty() && encoding != "identity") return reject("network");
@@ -208,6 +212,7 @@ void ArtworkFetch::start(const QUrl &url) {
     active_ = true;
     redirects_ = 0;
     url_ = url.adjusted(QUrl::RemoveFragment);
+    originHost_ = url_.host().toLower();
     deadline_.start();
     resolveUrl();
 }
@@ -352,6 +357,11 @@ void ArtworkFetch::finishResponse() {
             return;
         }
         url_ = url_.resolved(result.redirect).adjusted(QUrl::RemoveFragment);
+        // Lyrics go to one host only: a redirect elsewhere is not followed.
+        if (mode_ == Mode::Lyrics && url_.host().toLower() != originHost_) {
+            fail("network");
+            return;
+        }
         resolveUrl();
         return;
     }

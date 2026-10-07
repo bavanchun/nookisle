@@ -1758,6 +1758,10 @@ TestCase {
                 detail: "LRCLIB did not answer in time", retry: true },
             { tag: "error-network", state: "error", code: "network", title: "Lyrics could not be loaded",
                 detail: "Check the connection and try again", retry: true },
+            { tag: "error-busy", state: "error", code: "busy", title: "Lyrics could not be loaded",
+                detail: "LRCLIB is busy right now", retry: true },
+            { tag: "error-rate-limited", state: "error", code: "rate-limited", title: "Lyrics could not be loaded",
+                detail: "LRCLIB is limiting requests, try again shortly", retry: true },
             { tag: "idle-no-meta", state: "idle", meta: null, title: "Nothing to look up" },
             { tag: "off", state: "idle", off: true, title: "Lyrics are off" },
             { tag: "nothing-playing", state: "idle", noEndpoint: true, title: "Nothing is playing" }

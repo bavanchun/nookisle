@@ -61,7 +61,7 @@ ShellRoot {
         stdout: StdioCollector {
             onStreamFinished: {
                 test.same(text.trim(), "", "no fake child process lingers after cancel")
-                test.done()
+                test.nextStep()
             }
         }
     }
@@ -119,6 +119,16 @@ ShellRoot {
         }
         if (currentStep === 8 || currentStep === 9 || currentStep === 10) {
             recordedEvents.push({ event: "failed", code: code })
+            return
+        }
+        if (currentStep === 11) {
+            same(code, "busy", "passes error busy through as failed('busy')")
+            nextStep()
+            return
+        }
+        if (currentStep === 12) {
+            same(code, "rate-limited", "passes error rate-limited through as failed('rate-limited')")
+            done()
             return
         }
         report(false, "unexpected onFailed event in step " + currentStep)
@@ -186,6 +196,16 @@ ShellRoot {
             recordedEvents = []
             fetcher.start("case-linger")
             step10TimerA.start()
+            return
+        }
+        if (currentStep === 11) {
+            current = "test_error_busy"
+            fetcher.start("case-err-busy")
+            return
+        }
+        if (currentStep === 12) {
+            current = "test_error_rate_limited"
+            fetcher.start("case-err-rate-limited")
             return
         }
     }

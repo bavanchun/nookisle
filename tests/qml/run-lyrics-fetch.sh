@@ -33,6 +33,14 @@ elif url == "case-err-timeout":
     sys.stdout.write('error timeout\n')
     sys.stdout.flush()
     sys.exit(0)
+elif url == "case-err-busy":
+    sys.stdout.write('error busy\n')
+    sys.stdout.flush()
+    sys.exit(0)
+elif url == "case-err-rate-limited":
+    sys.stdout.write('error rate-limited\n')
+    sys.stdout.flush()
+    sys.exit(0)
 elif url == "case-err-unknown":
     sys.stdout.write('error strange-error\n')
     sys.stdout.flush()

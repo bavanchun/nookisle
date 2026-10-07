@@ -48,6 +48,7 @@ private:
     QTimer deadline_;
     QByteArray response_;
     QUrl url_;
+    QString originHost_;
     QHostAddress pinned_;
     quint64 serial_ = 0;
     int lookup_ = -1, redirects_ = 0;

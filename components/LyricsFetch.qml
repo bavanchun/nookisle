@@ -62,7 +62,8 @@ Item {
         }
         if (parts[0] === "error" && parts.length === 2) {
             var code = parts[1].trim()
-            if (code === "too-large" || code === "timeout" || code === "network")
+            if (code === "too-large" || code === "timeout" || code === "busy"
+                    || code === "rate-limited" || code === "network")
                 root.failed(code)
             else
                 root.failed("network")
