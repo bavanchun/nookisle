@@ -57,32 +57,71 @@ Item {
         return Strings.statusText(coordinator ? coordinator.statusText : "connecting");
     }
     // The lyric line: with lyrics on, it holds its place for every track,
-    // showing the current synced line, or the lookup's state while there is
-    // none, so the block under it never jumps as lyrics arrive.
+    // showing the current synced line, or what the lookup came to while
+    // there is none, so the block under it never jumps as lyrics arrive.
+    // The state comes from LyricsSource.displayState, the name the Lyrics
+    // view reads as well, and every state has its own words here.
     readonly property bool lyricsOn: !!coordinator && coordinator.lyrics === true && !!lyricsSource
         && lyricsSource.lyricsEnabled === true
-    readonly property string lyricsState: lyricsOn ? String(lyricsSource.lyricsState || "idle") : "off"
+    readonly property string lyricsState: lyricsOn ? String(lyricsSource.displayState || "off") : "off"
+    readonly property var lyricStateCopy: ({
+        "off": "",
+        "ready": "",
+        "loading": "Looking up lyrics…",
+        "no-meta": "Nothing to look up",
+        "none": "No synced lyrics",
+        "plain": "Unsynced lyrics only",
+        "instrumental": "Instrumental",
+        "error": "Lyrics unavailable",
+        "no-length": "Lyrics need the track length"
+    })
+    // The Lyrics view's detail line for each state, for the hover tooltip.
+    readonly property var lyricStateDetail: ({
+        "loading": "Asking LRCLIB for this track",
+        "no-meta": "This source does not report a title and artist",
+        "none": "LRCLIB has no timed lyrics for it",
+        "plain": "LRCLIB has the words for this track, but not their timing",
+        "instrumental": "This track has no lyrics",
+        "no-length": "This source does not report the track length, which lyrics need"
+    })
+    readonly property string lyricErrorCode: lyricsOn ? String(lyricsSource.errorCode || "") : ""
+    readonly property string lyricDetail: lyricsState !== "error" ? String(lyricStateDetail[lyricsState] || "")
+        : lyricErrorCode === "timeout" ? "LRCLIB did not answer in time"
+        : lyricErrorCode === "too-large" ? "The answer was too large to read"
+        : lyricErrorCode === "busy" ? "LRCLIB is busy right now"
+        : lyricErrorCode === "rate-limited" ? "LRCLIB is limiting requests, try again shortly"
+        : "Check the connection and try again"
     readonly property var lyricLines: lyricsState === "ready" && Array.isArray(lyricsSource.lines)
         ? lyricsSource.lines : []
     readonly property bool lyricShown: lyricsOn && !!endpoint && statusText === ""
     readonly property bool lyricSynced: lyricShown && lyricLines.length > 0
     readonly property int lyricIndex: lyricSynced ? lyricsSource.currentIndex : -1
-    readonly property string lyricText: {
-        if (lyricIndex >= 0 && lyricIndex < lyricLines.length)
-            return String(lyricLines[lyricIndex].text);
-        if (lyricSynced)
-            return "♪";
-        switch (lyricsState) {
-        case "idle":
-        case "loading":
-            return "Loading lyrics…";
-        case "plain":
-            return "Unsynced lyrics";
-        case "instrumental":
-            return "Instrumental";
-        }
-        return "No lyrics found";
+    // A lyric line, or the note before the first line and in a break; the
+    // tint marks the note. Anything else is a state message.
+    readonly property bool lyricIsLine: lyricIndex >= 0 && lyricIndex < lyricLines.length
+    readonly property bool lyricIsNote: lyricsState === "ready" && !lyricIsLine
+    // The words for the state, always in full: the accessible name and the
+    // tooltip use them even while the row is still blank.
+    readonly property string lyricStateText: lyricIsLine ? String(lyricLines[lyricIndex].text)
+        : lyricIsNote ? "♪" : String(lyricStateCopy[lyricsState] || "")
+    // A lookup says nothing for its first lyricRevealDelay: a cached answer
+    // or a quick one never shows status text that would only flash.
+    property bool lyricRevealed: false
+    readonly property bool lyricPending: lyricsState === "loading"
+    readonly property string lyricTrackKey: lyricsOn ? String(lyricsSource.trackKey || "") : ""
+    onLyricPendingChanged: lyricRevealed = false
+    onLyricTrackKeyChanged: if (lyricPending) {
+        lyricRevealed = false;
+        lyricReveal.restart();
     }
+    Timer {
+        id: lyricReveal
+        interval: root.tokens.lyricRevealDelay
+        running: root.lyricPending
+        repeat: false
+        onTriggered: root.lyricRevealed = true
+    }
+    readonly property string lyricText: lyricPending && !lyricRevealed ? "" : lyricStateText
     // Arabic and Persian lines take Vazirmatn when it is installed.
     readonly property bool vazirmatn: Qt.fontFamilies().indexOf("Vazirmatn") >= 0
     function lyricFont(text) {
@@ -420,17 +459,36 @@ Item {
             height: root.tokens.bodySize + root.tokens.small * 2
             visible: root.lyricShown || root.statusText !== ""
             clip: true
+            // The note before "Instrumental", in the tint.
+            Text {
+                id: lyricGlyph
+                objectName: "lyricGlyph"
+                visible: root.lyricShown && root.lyricsState === "instrumental"
+                anchors.verticalCenter: parent.verticalCenter
+                text: "♪"
+                textFormat: Text.PlainText
+                color: root.tokens.tint
+                opacity: inlineLyric.opacity
+                font.family: root.tokens.fontFamily
+                renderType: root.tokens.textRenderType
+                font.pixelSize: root.tokens.bodySize
+                font.weight: Font.Medium
+                Accessible.ignored: true
+            }
             Marquee {
                 id: inlineLyric
                 objectName: "inlineLyric"
-                width: parent.width
+                x: lyricGlyph.visible ? lyricGlyph.width + root.tokens.small : 0
+                width: parent.width - x
                 visible: root.lyricShown
                 tokens: root.tokens
                 text: root.lyricText
                 fontFamily: root.lyricFont(root.lyricText)
-                color: root.tokens.secondary
+                color: root.lyricIsLine ? root.tokens.text : root.lyricIsNote ? root.tokens.tint : root.tokens.secondary
+                weight: root.lyricsState === "ready" ? Font.Medium : Font.Normal
                 // Each new line drops in from above and fades up; a state
-                // message ("Loading lyrics…") is dimmer than a line.
+                // message ("Looking up lyrics…") appears in place and is
+                // dimmer than a line.
                 property real enter: 1
                 y: -root.tokens.gap * (1 - enter)
                 opacity: enter * (root.playing ? (root.lyricSynced ? 1 : 0.7) : 0)
@@ -438,10 +496,14 @@ Item {
                     enabled: root.tokens.lyricLineDuration > 0
                     NumberAnimation { duration: root.tokens.lyricLineDuration }
                 }
-                onTextChanged: if (root.tokens.lyricLineDuration > 0) {
+                onTextChanged: {
                     lineIn.stop();
-                    enter = 0;
-                    lineIn.start();
+                    if (root.tokens.lyricLineDuration > 0 && root.lyricsState === "ready") {
+                        enter = 0;
+                        lineIn.start();
+                    } else {
+                        enter = 1;
+                    }
                 }
                 NumberAnimation {
                     id: lineIn
@@ -452,11 +514,23 @@ Item {
                     easing.type: Easing.OutCubic
                 }
                 Accessible.role: Accessible.Button
-                Accessible.name: "Lyrics: " + text
+                Accessible.name: "Lyrics: " + root.lyricStateText
                 // Hidden while paused, so it takes no tap then.
                 TapHandler {
                     enabled: root.playing
                     onTapped: root.lyricsRequested()
+                }
+                HoverHandler {
+                    id: lyricHover
+                    enabled: root.playing
+                }
+                IslandToolTip {
+                    objectName: "lyricToolTip"
+                    parent: inlineLyric
+                    tokens: root.tokens
+                    visible: lyricHover.hovered && root.lyricDetail !== ""
+                    delay: 600
+                    text: root.lyricDetail
                 }
             }
             Text {

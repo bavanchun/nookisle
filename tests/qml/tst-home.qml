@@ -15,6 +15,8 @@ TestCase {
     DesignTokens {
         id: design
         reducedMotion: true
+        // The reveal waits 1 s in the app; the fixture does not.
+        lyricRevealDelay: 50
     }
     QtObject {
         id: facade
@@ -66,9 +68,16 @@ TestCase {
         id: lyricsFixture
         property bool lyricsEnabled: true
         property string lyricsState: "ready"
+        property string errorCode: ""
         property var lines: [{ time: 1, text: "First line" }, { time: 5, text: "Second line" }]
         property int currentIndex: 0
         property var meta: ({ title: "Afterglow" })
+        readonly property string displayState: !lyricsEnabled ? "off"
+            : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
+    }
+    // The real source, to enumerate the states a view can be handed.
+    LyricsSource {
+        id: realSource
     }
     // A stand-in for the camera: tests never open the real device.
     property int cameraCreations: 0
@@ -91,6 +100,12 @@ TestCase {
             settings: Object.assign(Settings.defaults("file"), { showMirror: true })
             lyricsSource: lyricsFixture
             cameraSource: fakeCamera
+        }
+    }
+    Component {
+        id: notchBackdrop
+        Rectangle {
+            color: design.notchColor
         }
     }
     Component {
@@ -182,7 +197,10 @@ TestCase {
         facade.actionError = "";
         facade.statusText = "";
         facade.lyrics = false;
+        lyricsFixture.lyricsEnabled = true;
         lyricsFixture.lyricsState = "ready";
+        lyricsFixture.errorCode = "";
+        lyricsFixture.meta = ({ title: "Afterglow" });
         lyricsFixture.currentIndex = 0;
         cameraCreations = 0;
         cameraDestructions = 0;
@@ -580,11 +598,146 @@ TestCase {
         compare(opened, 1, "a tap opens the Lyrics view");
         lyricsFixture.lyricsState = "none";
         verify(line.visible, "the line keeps its place without synced lines");
-        compare(line.text, "No lyrics found");
-        lyricsFixture.lyricsState = "loading";
-        compare(line.text, "Loading lyrics…");
+        compare(line.text, "No synced lyrics");
         lyricsFixture.lyricsState = "instrumental";
         compare(line.text, "Instrumental");
+    }
+    // Home on the notch's black, with the synced line in full ink.
+    function test_homeLyricLinePreview() {
+        facade.lyrics = true;
+        lyricsFixture.currentIndex = 1;
+        var host = createTemporaryObject(notchBackdrop, test, { width: 602, height: 142 });
+        var home = createTemporaryObject(homeComponent, host);
+        compare(findChild(home, "inlineLyric").text, "Second line");
+        waitForRendering(host);
+        grabImage(host).save(Qt.resolvedUrl("../../build/ui-preview/home-lyric-line.png").toString().slice(7));
+    }
+    function test_lyricStates_data() {
+        return [
+            { tag: "line", state: "ready", index: 1, text: "Second line", ink: "text", weight: Font.Medium },
+            { tag: "before-first-line", state: "ready", index: -1, text: "♪", ink: "tint", weight: Font.Medium },
+            { tag: "loading", state: "loading", text: "Looking up lyrics…", ink: "secondary", late: true },
+            { tag: "idle-with-track", state: "idle", text: "Looking up lyrics…", ink: "secondary", late: true },
+            { tag: "none", state: "none", text: "No synced lyrics", ink: "secondary" },
+            { tag: "plain", state: "plain", text: "Unsynced lyrics only", ink: "secondary" },
+            { tag: "instrumental", state: "instrumental", text: "Instrumental", ink: "secondary", glyph: true },
+            { tag: "error", state: "error", code: "network", text: "Lyrics unavailable", ink: "secondary" },
+            { tag: "error-timeout", state: "error", code: "timeout", text: "Lyrics unavailable", ink: "secondary" },
+            { tag: "error-busy", state: "error", code: "busy", text: "Lyrics unavailable", ink: "secondary" },
+            { tag: "error-rate-limited", state: "error", code: "rate-limited", text: "Lyrics unavailable", ink: "secondary" },
+            { tag: "no-length", state: "no-length", text: "Lyrics need the track length", ink: "secondary" },
+            { tag: "no-meta", state: "idle", meta: null, text: "Nothing to look up", ink: "secondary" },
+            { tag: "off", state: "idle", off: true, hidden: true }
+        ];
+    }
+    // Every state Home can be handed says what it means, in the words the
+    // Lyrics view uses, and never claims "no lyrics" for a state it does not
+    // know.
+    function test_lyricStates(data) {
+        facade.lyrics = true;
+        lyricsFixture.lyricsEnabled = data.off !== true;
+        lyricsFixture.errorCode = data.code || "";
+        if (data.meta === null)
+            lyricsFixture.meta = null;
+        lyricsFixture.currentIndex = data.index === undefined ? 0 : data.index;
+        lyricsFixture.lyricsState = data.state;
+        var home = createTemporaryObject(homeComponent, test);
+        var line = findChild(home, "inlineLyric");
+        var row = findChild(home, "lyricRow");
+        if (data.hidden) {
+            verify(!row.visible && !line.visible, "lyrics off hides the row");
+            return;
+        }
+        verify(row.visible);
+        if (data.late) {
+            compare(line.text, "", "no status text in the first moment of a lookup");
+            tryCompare(line, "text", data.text, 1000);
+        }
+        compare(line.text, data.text);
+        verify(Qt.colorEqual(line.color, design[data.ink]), data.ink + " ink: " + line.color);
+        if (data.weight !== undefined)
+            compare(line.weight, data.weight);
+        compare(findChild(home, "lyricGlyph").visible, data.glyph === true);
+        verify(line.Accessible.name.indexOf("Lyrics: ") === 0);
+        verify(line.Accessible.name.indexOf(data.text) > 0, "the accessible name carries the state: " + line.Accessible.name);
+    }
+    function test_lyricStatusIsBlankStraightAfterATrackChange() {
+        facade.lyrics = true;
+        var home = createTemporaryObject(homeComponent, test);
+        var line = findChild(home, "inlineLyric");
+        compare(line.text, "First line");
+        lyricsFixture.lyricsState = "loading";
+        compare(line.text, "", "a new lookup shows nothing at first");
+        tryCompare(line, "text", "Looking up lyrics…", 1000);
+        lyricsFixture.lyricsState = "ready";
+        compare(line.text, "First line");
+        lyricsFixture.lyricsState = "loading";
+        compare(line.text, "", "the reveal waits again for the next lookup");
+        lyricsFixture.lyricsState = "none";
+        compare(line.text, "No synced lyrics");
+        wait(120);
+        compare(line.text, "No synced lyrics", "a late reveal never replaces the answer");
+    }
+    // Hovering the line explains the state in the Lyrics view's own words.
+    function test_lyricToolTipCarriesTheViewsDetail() {
+        facade.lyrics = true;
+        var home = createTemporaryObject(homeComponent, test);
+        var tip = findChild(home, "lyricToolTip");
+        compare(tip.text, "", "a line needs no explanation");
+        lyricsFixture.lyricsState = "none";
+        compare(tip.text, "LRCLIB has no timed lyrics for it");
+        lyricsFixture.errorCode = "busy";
+        lyricsFixture.lyricsState = "error";
+        compare(tip.text, "LRCLIB is busy right now");
+        lyricsFixture.errorCode = "network";
+        compare(tip.text, "Check the connection and try again");
+    }
+    // A state message appears in place; only lines and notes drop in.
+    function test_lyricStatusDoesNotDropIn() {
+        design.reducedMotion = false;
+        facade.lyrics = true;
+        var home = createTemporaryObject(homeComponent, test);
+        var line = findChild(home, "inlineLyric");
+        lyricsFixture.currentIndex = 1;
+        verify(line.enter < 1, "a line drops in");
+        tryCompare(line, "enter", 1, 1000);
+        lyricsFixture.lyricsState = "none";
+        compare(line.enter, 1, "a state message does not drop");
+        compare(line.y, 0);
+    }
+    // A state added to LyricsSource must get a case on Home.
+    function test_everyLyricsDisplayStateHasACase() {
+        facade.lyrics = true;
+        var panel = findChild(createTemporaryObject(homeComponent, test), "playerPanel");
+        var seen = {};
+        var raw = ["idle", "loading", "ready", "plain", "none", "instrumental", "error", "no-length"];
+        var metas = [null, { title: "Afterglow", artist: "A" }];
+        for (var enabled = 0; enabled < 2; ++enabled)
+            for (var i = 0; i < raw.length; ++i)
+                for (var m = 0; m < metas.length; ++m) {
+                    realSource.lyricsEnabled = enabled === 1;
+                    realSource.lyricsState = raw[i];
+                    realSource.endpoint = metas[m] ? { presentation: { title: "Afterglow", artists: ["A"] }, lengthSeconds: 200 } : null;
+                    seen[realSource.displayState] = true;
+                }
+        // The mapping itself, on the real source.
+        var track = { presentation: { title: "Afterglow", artists: ["A"] }, lengthSeconds: 200 };
+        realSource.lyricsEnabled = true;
+        realSource.endpoint = track;
+        realSource.lyricsState = "idle";
+        compare(realSource.displayState, "loading", "idle with a track is a lookup");
+        realSource.endpoint = { presentation: { title: "Afterglow" }, lengthSeconds: 200 };
+        compare(realSource.displayState, "no-meta", "idle with no artist has nothing to look up");
+        realSource.lyricsState = "error";
+        compare(realSource.displayState, "error");
+        realSource.lyricsEnabled = false;
+        compare(realSource.displayState, "off");
+        var states = Object.keys(seen);
+        verify(states.indexOf("off") >= 0 && states.indexOf("no-meta") >= 0 && states.indexOf("loading") >= 0);
+        for (var j = 0; j < states.length; ++j)
+            verify(panel.lyricStateCopy.hasOwnProperty(states[j]), "Home has an explicit case for " + states[j]);
+        verify(panel.lyricStateCopy.hasOwnProperty("ready"));
+        verify(!panel.lyricStateCopy.hasOwnProperty("idle"), "idle never reaches a view");
     }
     // The player block holds still as lyrics load and arrive: the line keeps
     // its row for every lookup state, and the row clips a line dropping in.

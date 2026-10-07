@@ -1101,6 +1101,21 @@ def check_window_signals():
                 failures.append(f"{path.relative_to(ROOT)}: signal {name} duplicates {root[1]}'s own {name} signal")
 
 
+def check_lyric_copy_is_unified():
+    """Home and the Lyrics view read one state name (LyricsSource.displayState)
+    and use the same words for it, so Home cannot fall back to a claim the
+    view contradicts."""
+    panel = (ROOT / "components" / "PlayerPanel.qml").read_text()
+    for stale in ("No lyrics found", "Loading lyrics…"):
+        if stale in panel:
+            failures.append(f"components/PlayerPanel.qml: \"{stale}\" is retired; use the Lyrics view's wording")
+    if "displayState" not in panel:
+        failures.append("components/PlayerPanel.qml: the lyric line must read LyricsSource.displayState")
+    view = (ROOT / "components" / "IslandLyrics.qml").read_text()
+    if "displayState" not in view:
+        failures.append("components/IslandLyrics.qml: the view must read LyricsSource.displayState")
+
+
 def check_plain_text_contract():
     """Webpage-controlled MPRIS/Chrome/CalDAV text rendered as RichText/AutoText
     is blocked by marketplace security. All dynamic text must set PlainText."""
@@ -1389,6 +1404,7 @@ def main():
     check_camera_order_pruned()
     check_deadlines_ignore_wall_clock()
     check_plain_text_contract()
+    check_lyric_copy_is_unified()
     check_single_manifest()
     check_untrusted_url_contract()
     check_settings_atomic_0600_ordering()

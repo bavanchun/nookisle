@@ -166,6 +166,11 @@ QtObject {
     readonly property int tabDuration: reducedMotion ? 0 : 350
     readonly property int lyricLineDuration: reducedMotion ? 0 : 180
     readonly property int lyricCurrentSize: titleSize + 2
+    // How long Home waits before it says a lyrics lookup is running, so a
+    // quick answer never flashes status text. An intent timing like
+    // hoverDwell: reduced motion does not shorten it. Writable so the tests
+    // can shorten it.
+    property int lyricRevealDelay: 1000
     // Artwork tint. Panel.qml writes artColor from the artwork's most vivid
     // colour; transparent means no artwork, and then every derived colour is
     // exactly the plain theme. The guards run against the live palette,

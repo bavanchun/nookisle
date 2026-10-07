@@ -457,11 +457,18 @@ The player, after boring.notch's:
   When the helper trims overlong metadata, Home shows a focusable marker with
   an explanation beside the title.
 - **Lyric or status line.** With lyrics on, the line keeps its row for every
-  track, so the block never moves as lyrics arrive: the current synced line
-  (dropping in from above as it changes, clipped to its row), or, dimmed, the
-  lookup's state ("Loading lyrics…", "Unsynced lyrics", "Instrumental" or "No
-  lyrics found"). It scrolls like the title when it does not fit and fades out
-  on pause; a tap while playing opens the Lyrics
+  track, so the block never moves as lyrics arrive. A synced line is drawn in
+  full ink, medium weight, dropping in from above as it changes (clipped to its
+  row); the time before the first line and a break show a note in the tint.
+  Anything else is a state message in the dimmed secondary colour that appears
+  in place: "Looking up lyrics…" (only after one second of lookup, so a quick
+  answer never flashes it; the row is blank until then), "No synced lyrics",
+  "Unsynced lyrics only", a tinted note then "Instrumental", "Lyrics
+  unavailable" for any error (the Lyrics view carries Try again), "Lyrics need
+  the track length" and "Nothing to look up". Home and the Lyrics view read one
+  state name, `LyricsSource.displayState`, so their wording cannot drift apart.
+  Hovering the line shows the view's detail line. It scrolls like the title when
+  it does not fit and fades out on pause; a tap while playing opens the Lyrics
   view. Arabic and Persian lines use Vazirmatn when it is installed. An
   action's error, or the connection state while no source shows, takes the
   line's place.
