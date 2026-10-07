@@ -158,11 +158,6 @@ def check_absolute_positions_removed():
             failures.append(
                 f"components/DesignTokens.qml: {name} is back; the expanded player "
                 f"is laid out by bands, not absolute Y constants")
-    content = (ROOT / "components" / "IslandContent.qml").read_text()
-    for number, line in enumerate(content.splitlines(), 1):
-        if re.search(r"y:.*tokens\.(headerHeight|transportY|statusY)", line):
-            failures.append(
-                f"components/IslandContent.qml:{number}: absolute Y arithmetic")
 
 
 def check_production_properties():
@@ -330,11 +325,11 @@ def check_camera_gate():
                 failures.append(f"{path.relative_to(ROOT)}: {component} belongs only in {' or '.join(hosts)}")
 
 
-# qml/Settings.js is the single list of setting keys. The eleven booleans a bar
+# qml/Settings.js is the single list of setting keys. The ten booleans a bar
 # entry has always carried stay in the host's shell.json, in this order;
 # positional so a silent reorder or drop is caught, not only an addition.
 LEGACY_KEYS = ["autoShow", "reducedMotion", "highContrast", "remoteArtwork",
-               "island", "hud", "visualizer", "peek", "tint", "power", "lyrics"]
+               "hud", "visualizer", "peek", "tint", "power", "lyrics"]
 
 
 def check_fixed_plugin_windows():
@@ -413,6 +408,42 @@ def check_setting_keys():
     for key in LEGACY_KEYS[:2]:
         if f'"{key}"' in service:
             failures.append(f'Service.qml: names the setting "{key}" as a string; derive keys from qml/Settings.js')
+
+
+def check_always_island_contract():
+    """The island is the only panel surface and is no longer configurable."""
+    settings = (ROOT / "qml" / "Settings.js").read_text()
+    service = (ROOT / "Service.qml").read_text()
+    panel = (ROOT / "Panel.qml").read_text()
+    bar = (ROOT / "BarWidget.qml").read_text()
+    keys = (ROOT / "qml" / "IslandKeys.js").read_text()
+    settings_window = (ROOT / "components" / "SettingsWindow.qml").read_text()
+
+    if any(key == "island" for key, _store in schema_entries()):
+        failures.append('qml/Settings.js: the removed "island" setting is still in the schema')
+    if re.search(r"\b(?:property|readonly property)\s+bool\s+island\b", service):
+        failures.append("Service.qml: island must not remain a configurable service property")
+    if re.search(r"\bIslandSettings\s*\{", settings_window):
+        failures.append("components/SettingsWindow.qml: the removed island settings group is still hosted")
+    for removed in ("islandMode", "targetScreen", "chosenScreenName", "contentLoader"):
+        if re.search(rf"\b{removed}\b", panel):
+            failures.append(f"Panel.qml: removed legacy panel state {removed} is still present")
+    if not re.search(r"\bid:\s*surfaceLoader\b[\s\S]*?\bactive:\s*true\b", panel):
+        failures.append("Panel.qml: the sole island surface loader must always be active")
+    if "initializingSurface" not in panel:
+        failures.append("Panel.qml: root.surface needs the inert initializingSurface fallback")
+    if not re.search(r"function\s+keyboardFocus\(visible,\s*explicitOpen,\s*islandExpanded,\s*lent\)", keys):
+        failures.append("qml/IslandKeys.js: keyboardFocus must expose only the always-island signature")
+    if "onDemand" in keys:
+        failures.append("qml/IslandKeys.js: the removed legacy on-demand focus branch is still present")
+    if not re.search(r"\bspacerAllowed\b", bar):
+        failures.append("BarWidget.qml: the top-horizontal spacer gate is missing")
+    for removed in ("interactionActive", "registerClickTarget", "MouseArea", "HoverHandler", "ToolTip"):
+        if re.search(rf"\b{removed}\b", bar):
+            failures.append(f"BarWidget.qml: removed interactive UI {removed} is still present")
+    for name in ("IslandContent.qml", "IslandSettings.qml"):
+        if (ROOT / "components" / name).exists():
+            failures.append(f"components/{name}: deleted legacy UI still exists")
 
 
 OPT_IN_SETTINGS = ("lyrics", "hud")
@@ -548,8 +579,8 @@ def check_calendar_boundary():
     for marker in ("setPeerVerifyName", "NoProxy", "private-address", "redirect-refused", "abortHostLookup", "calendarTooLarge"):
         if marker not in helper:
             failures.append(f"helper/calendar-sources.cpp: missing calendar network boundary {marker}")
-    if not re.search(r"active:\s*root.showCalendar\s*&&\s*root.calendarSupported\s*&&\s*root.island\s*&&\s*root.uiAllowed", service):
-        failures.append("Service.qml: CalendarSource loader must require island mode, admission and opt-in")
+    if not re.search(r"active:\s*root.showCalendar\s*&&\s*root.calendarSupported\s*&&\s*root.uiAllowed", service):
+        failures.append("Service.qml: CalendarSource loader must require admission and opt-in")
     for verb in ("calendarConfigure", "calendarWindow", "calendarSetCompleted", "calendarCredential", "calendarTest"):
         if verb not in source:
             failures.append(f"components/CalendarSource.qml: missing {verb} protocol owner")
@@ -731,7 +762,7 @@ def check_network_confined():
 # on the Lyrics view, and a source only while the UI is allowed.
 LYRICS_GATES = {
     "fetcher": ["lyricsFetch"],
-    "lyricsEnabled": ["root.islandMode", "root.coordinator.lyrics === true"],
+    "lyricsEnabled": ["root.coordinator.lyrics === true"],
     "wanted": ["root.islandVisible", "root.surface.expanded", '(root.surface.view === "home" || root.surface.view === "lyrics")'],
     "endpoint": ["root.coordinator.uiAllowed === true"],
 }
@@ -772,11 +803,9 @@ def check_lyrics_fetch():
 
 
 def check_island_content_free():
-    """The island's Home is its own player: IslandContent serves only the
-    legacy panel, with no island-only path left in it."""
-    content = (ROOT / "components" / "IslandContent.qml").read_text()
-    if re.search(r"\bartGestures\b|\bheroArtGesture\b", content):
-        failures.append("components/IslandContent.qml: an island-only path is back")
+    """The island's Home is its own player; the legacy content is absent."""
+    if (ROOT / "components" / "IslandContent.qml").exists():
+        failures.append("components/IslandContent.qml: the deleted legacy panel is back")
     surface = (ROOT / "components" / "IslandSurface.qml").read_text()
     if re.search(r"^\s*IslandContent\s*\{", surface, re.M):
         failures.append("components/IslandSurface.qml: the island hosts IslandContent again; Home is HomeView")
@@ -804,7 +833,7 @@ def check_hud_input_growth():
         failures.append("components/IslandSurface.qml: the HUD input rectangle must jump, never animate")
     if "onPointChanged: if (hovered) root.trackHoverPoint(point.position, point.pressedButtons)" not in surface:
         failures.append("components/IslandSurface.qml: every hover move must pass its pressed buttons to the dwell")
-    if not re.search(r"value: root\.islandMode && !hudModel\.held", panel):
+    if not re.search(r"value: !hudModel\.held", panel):
         failures.append("Panel.qml: the HUD must not be suppressed while its bar is held")
     if not re.search(r'powerEnabled:.*showPowerNotifications !== false && root\.surface\.settings\.powerStyle === "peek"', panel, re.S):
         failures.append("Panel.qml: charger peeks show only with powerStyle \"peek\"")
@@ -870,7 +899,7 @@ STATUS_KEYS = {
     "timers",
     "connected", "lockReady", "panelAllowed", "controlsAllowed", "sourceCount",
     "selectionMode", "pinUnavailable", "helperRunning", "viewVisible", "viewExpanded",
-    "diagnostic", "remoteArtwork", "reducedMotion", "highContrast", "island", "hud",
+    "diagnostic", "remoteArtwork", "reducedMotion", "highContrast", "hud",
     "visualizer", "peek", "tint", "power", "lyrics", "shelfCount", "brightnessHud",
     "spectrum", "settings",
 }
@@ -1380,6 +1409,7 @@ def main():
     check_invalid_settings_backup()
     check_ipc_surface()
     check_setting_keys()
+    check_always_island_contract()
     check_lyrics_opt_in()
     check_finite_motion()
     check_spectrum_owner()

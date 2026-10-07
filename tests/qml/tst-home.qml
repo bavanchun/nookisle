@@ -36,7 +36,6 @@ TestCase {
         property bool reducedMotion: true
         property bool highContrast: false
         property bool autoShow: true
-        property bool island: true
         property bool hud: true
         property bool visualizer: true
         property bool sleepArmable: true

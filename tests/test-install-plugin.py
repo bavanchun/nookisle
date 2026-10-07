@@ -643,7 +643,7 @@ esac
                 "omarchy-shell -q nookisle keyboardBacklightChanged", "timeout 1s"])
 
     def test_media_keys_fall_back_to_omarchy_when_the_island_shows_no_readout(self):
-        # "unavailable" covers hud or island off, a hidden island and an
+        # "unavailable" covers hud off, a hidden island and an
         # unwatched device; "down" is a disabled plugin or a stopped or hung
         # shell. Either way Omarchy's own command acts and shows one OSD, and
         # nothing OSD-free runs beside it.
@@ -1125,7 +1125,9 @@ esac
 
     def test_missing_runtime_member_rejected(self):
         package = Path(__file__).parents[1] / "build/package"
-        for name in ("components/IslandContent.qml", "libexec/nookisle-artwork-decoder",
+        for name in ("components/IslandSurface.qml", "components/HomeView.qml",
+                     "components/PlayerPanel.qml", "components/SettingsWindow.qml",
+                     "libexec/nookisle-artwork-decoder",
                      "libexec/nookisle-media-keys", "components/BrightnessSource.qml",
                      "components/HudBar.qml", "components/HudCapsule.qml",
                      "qml/HudGeometry.js", "qml/FullscreenPolicy.js", "browser/chrome/worker.js",

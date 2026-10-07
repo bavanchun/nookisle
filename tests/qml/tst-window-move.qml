@@ -2,8 +2,8 @@ import QtQuick
 import QtTest
 import "../../components"
 
-// Quickshell rebuilds a panel's window (turning island mode on or off, a
-// screen change) by moving the whole content into a new QQuickWindow and
+// Quickshell rebuilds a panel's window on a screen change by moving the
+// whole content into a new QQuickWindow and
 // deleting the old one. Any item left holding the old window then crashes
 // the next scene-graph sync. Each test here builds the content Panel.qml puts
 // in its PanelWindow, drives it into one state, and moves it from window to
@@ -45,7 +45,6 @@ TestCase {
         property bool highContrast: false
         property bool remoteArtwork: false
         property bool autoShow: true
-        property bool island: true
         property bool hud: true
         property bool visualizer: true
         property bool lyrics: true
@@ -107,43 +106,17 @@ TestCase {
             visible: true
         }
     }
-    // A stand-in for the PanelWindow's content: the legacy card with
-    // IslandContent, and the island surface, one of them shown by mode.
-    // Panel.qml builds only the current mode's tree; run-panel-mode-tree.js
-    // covers those Loaders and a live switch in both directions.
+    // A stand-in for the PanelWindow's sole island surface.
     Component {
         id: panelContent
         Item {
             id: host
-            property bool islandMode: true
-            property bool legacyExpanded: true
             readonly property alias surface: surface
-            readonly property alias content: content
             width: 760
             height: 420
-            Rectangle {
-                id: card
-                anchors.fill: parent
-                visible: !host.islandMode
-                radius: design.expandedRadius
-                color: design.surface
-                clip: true
-                IslandContent {
-                    id: content
-                    tokens: design
-                    coordinator: facade
-                    width: host.legacyExpanded ? design.expandedWidth : design.compactWidth
-                    height: parent.height
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    expanded: host.legacyExpanded
-                    admitted: true
-                    visible: card.visible
-                }
-            }
             IslandSurface {
                 id: surface
                 anchors.fill: parent
-                visible: host.islandMode
                 tokens: design
                 coordinator: facade
                 hostVisible: host.visible
@@ -254,11 +227,11 @@ TestCase {
         failOnWarning(/TypeError/);
         failOnWarning(/ReferenceError/);
     }
-    function build(islandMode) {
+    function build() {
         var first = bareWindow.createObject(test);
         // Owned by the test, shown in the window: the window only hosts the
         // content, as a Quickshell window hosts the panel's.
-        var host = panelContent.createObject(test, { parent: first.contentItem, islandMode: islandMode });
+        var host = panelContent.createObject(test, { parent: first.contentItem });
         host.surface.cameraSource = fakeCamera;
         return { window: first, host: host };
     }
@@ -267,22 +240,8 @@ TestCase {
         verify(item && item.visible, name + " is visible " + where);
         return item;
     }
-    // Island mode shows the surface and hides the legacy card.
     function checkIslandSide(host, where) {
         verify(host.surface.visible, "the island surface shows " + where);
-        verify(!host.content.visible, "the legacy content is hidden " + where);
-    }
-    // The legacy card, expanded or compact, with the island hidden.
-    function checkLegacy(host, expanded, where) {
-        verify(!host.surface.visible, "the island surface is hidden " + where);
-        verify(host.content.visible, "the legacy content shows " + where);
-        if (expanded) {
-            var loader = findChild(host.content, "expandedContentLoader");
-            verify(loader.item && loader.item.visible, "the expanded legacy content is loaded " + where);
-            shown(host.content, "heroArtwork", where);
-        } else {
-            shown(host.content, "compactExpandButton", where);
-        }
     }
     // The closed notch at rest: live while playing, idle (with its face)
     // once paused, since the fixture has no pause grace.
@@ -389,7 +348,7 @@ TestCase {
         }
         if (data.state === "hudBelow")
             facade.fileSettings = Object.assign({}, facade.fileSettings, { hudStyle: "below" });
-        var built = build(true);
+        var built = build();
         var surface = built.host.surface;
         switch (data.state) {
         case "home":
@@ -433,81 +392,4 @@ TestCase {
         });
     }
 
-    // The legacy card, collapsed and expanded, playing and paused.
-    function test_legacyContentMovesBetweenWindows_data() {
-        return [
-            { tag: "expanded-playing", expanded: true, status: "Playing", gpu: false },
-            { tag: "expanded-paused-gpu", expanded: true, status: "Paused", gpu: true },
-            { tag: "compact-playing-gpu", expanded: false, status: "Playing", gpu: true },
-            { tag: "compact-paused", expanded: false, status: "Paused", gpu: false }
-        ];
-    }
-    function test_legacyContentMovesBetweenWindows(data) {
-        design.gpuEffects = data.gpu;
-        facade.selectedEndpoint = endpoint(data.status);
-        facade.endpoints = [facade.selectedEndpoint];
-        var built = build(false);
-        built.host.legacyExpanded = data.expanded;
-        waitForRendering(built.host);
-        watchForStaleWindows();
-        moveThroughWindows(built.host, built.window, 4, function (where) {
-            checkLegacy(built.host, data.expanded, where);
-        });
-    }
-
-    // An island mode switch as Panel.qml performs it: leaving island mode
-    // resets the surface for the host (collapsed, holds dropped) and shows
-    // the legacy card; entering it shows the collapsed island, which the
-    // open rows then reopen. The host rebuilds the window after each flip.
-    // Both sides of every flip are asserted, and again after the render.
-    function test_modeSwitchMovesContentBetweenWindows_data() {
-        return [
-            { tag: "open-paused-gpu", open: true, status: "Paused", gpu: true },
-            { tag: "open-playing", open: true, status: "Playing", gpu: false },
-            { tag: "closed-playing-gpu", open: false, status: "Playing", gpu: true },
-            { tag: "closed-paused", open: false, status: "Paused", gpu: false }
-        ];
-    }
-    function test_modeSwitchMovesContentBetweenWindows(data) {
-        design.gpuEffects = data.gpu;
-        facade.selectedEndpoint = endpoint(data.status);
-        facade.endpoints = [facade.selectedEndpoint];
-        var built = build(true);
-        var host = built.host;
-        var surface = host.surface;
-        var islandRow = { state: data.open ? "home" : "live", gpu: data.gpu, status: data.status };
-        if (data.open)
-            surface.expandTo("home");
-        waitForRendering(host);
-        watchForStaleWindows();
-        function checkSide(where) {
-            if (host.islandMode)
-                checkIslandState(host, islandRow, where);
-            else
-                checkLegacy(host, true, where);
-        }
-        var current = built.window;
-        for (var i = 0; i < 6; ++i) {
-            var flip = "flip " + (i + 1);
-            checkSide("before " + flip);
-            if (host.islandMode) {
-                host.islandMode = false;
-                surface.resetForHost();
-                compare(surface.expanded, false, "leaving island mode collapses the surface (" + flip + ")");
-                checkLegacy(host, true, "after " + flip);
-            } else {
-                host.islandMode = true;
-                checkIslandSide(host, "after " + flip);
-                checkClosedRest(surface, data.status, "on entering island mode (" + flip + ")");
-                if (data.open)
-                    surface.expandTo("home");
-                checkSide("after " + flip);
-            }
-            current = moveOnce(host, current);
-            checkSide("after the rebuild of " + flip);
-        }
-        host.destroy();
-        current.destroy();
-        wait(0);
-    }
 }

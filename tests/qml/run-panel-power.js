@@ -35,7 +35,6 @@ TestCase {
             id: root
             width: 320
             height: 120
-            property bool islandMode: true
             property var coordinator: ({ power: true, peek: false })
             property alias settings: surfaceObject.settings
             property alias battery: batteryModel

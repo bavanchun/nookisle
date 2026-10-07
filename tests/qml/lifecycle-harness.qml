@@ -400,7 +400,7 @@ ShellRoot {
                 if (test.stage === 672)
                     console.log("spectrum deadline", test.active.spectrumDesired, test.active.spectrumState,
                         test.active.spectrumRunning, test.active.spectrumLevels.length, test.active.spectrumPath,
-                        test.active.island, test.active.uiAllowed, test.active.selectedEndpoint ? test.active.selectedEndpoint.status : "none")
+                        test.active.uiAllowed, test.active.selectedEndpoint ? test.active.selectedEndpoint.status : "none")
                 test.check(false, "harness deadline stage " + test.stage + " after " + (Date.now() - test.started) + " ms")
                 test.done()
                 return
@@ -641,7 +641,9 @@ ShellRoot {
                 var revision = registry.registryRevision
                 test.check(typed.configure({ hoverDwell: 450, hud: "x" }) === false && typed.fileSettings.hoverDwell === 300
                     && registry.registryRevision === revision, "a batch with one invalid value writes nothing to either store")
-                test.check(typed.configure(JSON.parse('{"island":true}')) === true && typed.island === true
+                test.check(typed.configure(JSON.parse('{"island":true}')) === false
+                    && registry.registryRevision === revision, "the retired island setting is rejected by configure")
+                test.check(typed.configure({ autoShow: true }) === true
                     && registry.registryRevision === revision + 1, "a boolean batch writes the shell config as before")
                 test.check(typed.configure({ hoverDwell: 450, hud: true }) === true && typed.fileSettings.hoverDwell === 450
                     && typed.hud === true && registry.shellConfig.plugins[0].settings.hoverDwell === undefined,
@@ -705,12 +707,13 @@ ShellRoot {
                 test.chmodSettingsDir("700")
                 test.stage = 6521
             } else if (test.stage === 6521 && test.settingsChmodDone) {
-                settingsProbe.setText(JSON.stringify({ version: 1, values: { hoverDwell: 700, leaveGrace: "x", bogus: true } }))
+                settingsProbe.setText(JSON.stringify({ version: 1,
+                    values: { hoverDwell: 700, leaveGrace: "x", bogus: true, island: false } }))
                 test.stage = 653
             } else if (test.stage === 653 && test.active.fileSettings.hoverDwell === 700) {
                 var reloaded = test.active.fileSettings
-                test.check(reloaded.leaveGrace === 100 && !("bogus" in reloaded),
-                    "a reloaded file keeps valid values, defaults invalid ones and drops unknown keys")
+                test.check(reloaded.leaveGrace === 100 && !("bogus" in reloaded) && !("island" in reloaded),
+                    "a reloaded file keeps valid values and ignores the retired island key")
                 settingsProbe.setText("{ not json")
                 test.stage = 654
             } else if (test.stage === 654 && test.active.fileSettings.hoverDwell === 300) {
@@ -1053,9 +1056,9 @@ ShellRoot {
                 test.check(test.active.configure({ calendarSources: [] }), "calendar sources reset")
                 test.stage = 66
             } else if (test.stage === 66 && Object.keys(test.active.pendingRequests).length === 0) {
-                // Island settings and shelf contract.
+                // Shell settings and shelf contract.
                 var own = test.active
-                test.check(own.island === true && own.hud === true, "island and hud on")
+                test.check(own.hud === true, "hud on")
                 test.check(own.visualizer === true && own.peek === false && own.tint === true
                     && own.power === true && own.lyrics === false,
                     "spectrum, tint and power start on; track peeks and lyrics start off")
@@ -1067,13 +1070,13 @@ ShellRoot {
                 var mutator = registry.shellConfigMutator
                 registry.shellConfigProvider = null
                 registry.shellConfigMutator = null
-                test.check(own.configure({ hud: false }) === true && own.hud === false && own.island === true,
+                test.check(own.configure({ hud: false }) === true && own.hud === false,
                     "the scoped host writes a setting through updateEntryInline and it reads back")
-                test.check(own.configure({ island: false }) === true && own.island === false && own.hud === false,
+                test.check(own.configure({ power: false }) === true && own.power === false && own.hud === false,
                     "a second write keeps the first, because updateEntryInline replaces every key")
-                test.check(own.configure({ island: true, hud: true }) === true && own.island && own.hud, "settings restored")
+                test.check(own.configure({ power: true, hud: true }) === true && own.power && own.hud, "settings restored")
                 var last = host.inlineWrites[host.inlineWrites.length - 1]
-                test.check(last.island === true && last.hud === true && last.reducedMotion === undefined,
+                test.check(last.island === undefined && last.power === true && last.hud === true && last.reducedMotion === undefined,
                     "each write sends every known setting, and only known settings")
                 test.check(own.configure({ visualizer: false, lyrics: true }) === true
                     && own.visualizer === false && own.lyrics === true,
@@ -1083,13 +1086,13 @@ ShellRoot {
                     "the write carries the two changed keys")
                 // "id" is this fake host's own record of the entry, not a setting.
                 test.check(Object.keys(last2).every(function (key) { return key === "id" || own.settingKeys.indexOf(key) >= 0 })
-                    && last2.island === true && last2.hud === true && last2.reducedMotion === undefined,
+                    && last2.island === undefined && last2.hud === true && last2.reducedMotion === undefined,
                     "a write carries only keys already stored plus the changed ones, never one outside settingKeys")
                 test.check(own.configure({ visualizer: true, lyrics: false }) === true, "visualizer and lyrics restored")
                 host.barConfig = { layout: { left: [], center: [{ id: "io.github.bavanchun.nookisle", hud: false }], right: [] } }
-                test.check(own.hud === false && own.island === true, "a fresh host copy replaces what this instance wrote")
+                test.check(own.hud === false, "a fresh host copy replaces what this instance wrote")
                 host.barConfig = { layout: { left: [], center: [{ id: "io.github.bavanchun.nookisle", hud: true }], right: [] } }
-                test.check(own.hud === true && own.island === true, "fresh host copy restores hud")
+                test.check(own.hud === true, "fresh host copy restores hud")
                 registry.shellConfigProvider = provider
                 registry.shellConfigMutator = mutator
                 test.check(own.shelfAdd(["file:///tmp/a.txt", "ftp://x", "file:///tmp/a.txt"]) === 1
@@ -1121,18 +1124,6 @@ ShellRoot {
                 test.check(test.readouts(test.active, "intel_backlight", true) === "unavailable unavailable unavailable unavailable",
                     "with hud off no key readout is the island's, so Omarchy shows its own")
                 test.check(test.active.configure({ hud: true }) === true, "hud restored")
-                test.stage = 661
-            } else if (test.stage === 661 && test.active.brightnessMonitorRunning) {
-                // island:false hides the pill that would
-                // ever show the HUD, so the backlight monitor must stop then
-                // too, not just when hud:false.
-                test.check(test.active.configure({ island: false }) === true, "island can be turned off")
-                test.stage = 6610
-            } else if (test.stage === 6610 && !test.active.brightnessMonitorRunning) {
-                test.check(test.active.island === false, "configure(island:false) is reflected on the coordinator")
-                test.check(test.readouts(test.active, "intel_backlight", true) === "unavailable unavailable unavailable unavailable",
-                    "the legacy widget draws no key readout, so Omarchy shows its own")
-                test.check(test.active.configure({ island: true }) === true, "island restored")
                 test.stage = 6611
             } else if (test.stage === 6611 && test.active.brightnessMonitorRunning) {
                 // backlightChanged: the helper's event for the watched device re-reads

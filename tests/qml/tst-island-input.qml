@@ -33,7 +33,6 @@ TestCase {
         property bool highContrast: false
         property bool remoteArtwork: false
         property bool autoShow: true
-        property bool island: true
         property bool hud: true
         property bool visualizer: true
         property string spectrumState: "off"
@@ -74,16 +73,6 @@ TestCase {
             pillHeight: 26
             width: design.notchWindowWidth()
             height: design.notchWindowHeight()
-        }
-    }
-    Component {
-        id: legacyContentComponent
-        IslandContent {
-            tokens: design
-            coordinator: facade
-            width: design.expandedWidth
-            height: design.panelHeight(design.expandedWidth)
-            expanded: true
         }
     }
     SignalSpy {
@@ -176,12 +165,11 @@ TestCase {
     }
 
     function test_keyboardFocusIsExclusiveOnlyForASummon() {
-        compare(IslandKeys.keyboardFocus(true, true, true, true, false), "exclusive");
-        compare(IslandKeys.keyboardFocus(true, true, false, true, false), "none", "hover open never takes the keyboard");
-        compare(IslandKeys.keyboardFocus(true, true, true, false, false), "none", "collapsed releases it");
-        compare(IslandKeys.keyboardFocus(false, true, true, true, false), "none", "hidden releases it");
-        compare(IslandKeys.keyboardFocus(true, false, false, false, true), "onDemand", "legacy panel unchanged");
-        compare(IslandKeys.keyboardFocus(true, false, false, false, false), "none");
+        compare(IslandKeys.keyboardFocus(true, true, true, false), "exclusive");
+        compare(IslandKeys.keyboardFocus(true, false, true, false), "none", "hover open never takes the keyboard");
+        compare(IslandKeys.keyboardFocus(true, true, false, false), "none", "collapsed releases it");
+        compare(IslandKeys.keyboardFocus(false, true, true, false), "none", "hidden releases it");
+        compare(IslandKeys.keyboardFocus(true, true, true, true), "none", "an island window borrows the keyboard");
     }
     function test_relative_seek_does_not_enable_absolute_key_step() {
         var state = { capabilities: { CanControl: true, CanSeek: true, CanSetPosition: false }, lengthSeconds: 200 }
@@ -666,14 +654,6 @@ TestCase {
         compare(actions(), []);
         compare(art.scale, 1, "no pulse without a command");
     }
-    function test_legacyContentArtIsInert() {
-        var content = createTemporaryObject(legacyContentComponent, test);
-        waitForRendering(content);
-        var art = findChild(content, "heroArtwork");
-        verify(art && art.visible);
-        mouseDoubleClickSequence(art, art.width / 2, art.height / 2);
-        compare(actions(), [], "the legacy panel's art keeps no gesture");
-    }
     function test_sourcePickerKeepsTabInsideSurface() {
         facade.endpoints = [endpoint("one"), endpoint("two")];
         facade.selectedEndpoint = facade.endpoints[0];
@@ -718,15 +698,5 @@ TestCase {
         compare(surface.view, "home");
         keyClick(Qt.Key_Escape);
         compare(surface.expanded, false, "Escape still collapses the island");
-    }
-    function test_legacySettingsEntryKeepsItsInlineView() {
-        var content = createTemporaryObject(legacyContentComponent, test);
-        waitForRendering(content);
-        var settingsButton = findChild(content, "openSettingsButton");
-        verify(settingsButton);
-        mouseClick(settingsButton);
-        compare(content.settingsOpen, true, "the legacy panel keeps its existing settings view");
-        compare(facade.settingsSections, [], "the legacy entry does not open another window");
-        verify(findChild(content, "settingsBackButton"));
     }
 }

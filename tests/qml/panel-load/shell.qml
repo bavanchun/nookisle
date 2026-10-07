@@ -19,11 +19,20 @@ ShellRoot {
             console.error("PANEL_LOAD_FAIL " + message)
         }
     }
+    function findObject(root, name) {
+        if (!root) return null
+        if (root.objectName === name) return root
+        var children = root.children || []
+        for (var i = 0; i < children.length; ++i) {
+            var found = findObject(children[i], name)
+            if (found) return found
+        }
+        return null
+    }
     QtObject {
         id: coordinator
         property bool panelAllowed: true
         property bool uiAllowed: true
-        property bool island: true
         property bool autoShow: true
         property bool hud: true
         property bool peek: false
@@ -95,6 +104,7 @@ ShellRoot {
         id: hostShell
         property var bar: QtObject {
             property string position: "top"
+            property bool vertical: false
             property bool barHidden: false
             property int barSize: 26
             property var layoutConfig: ({ left: [], center: [{ id: "io.github.bavanchun.nookisle" }], right: [] })
@@ -108,6 +118,7 @@ ShellRoot {
     }
     property var bare: null
     property var island: null
+    property var surface: null
     Timer {
         interval: 50
         running: true
@@ -119,12 +130,16 @@ ShellRoot {
             test.check(!!test.bare, "Panel builds without a host: " + component.status + " " + component.errorString())
             test.island = component.createObject(null, { shell: hostShell })
             test.check(!!test.island, "Panel builds as the island")
-            test.check(test.island && test.island.islandMode === true, "the island mode is on over a top bar")
+            test.surface = test.island ? test.island.surface : null
+            test.check(test.surface && test.surface.objectName === "nookisleSurface",
+                "root.surface resolves to the always-loaded production island")
+            test.check(test.surface && test.surface.pillHeight === 26,
+                "a top horizontal 26px bar sets a 26px pill")
             settle.start()
         }
     }
-    // Long enough for Loaders, deferred calls and the first frames. Then
-    // the mode switches: status() follows the mode the panel shows.
+    // Long enough for Loaders, deferred calls and the first frames. Then the
+    // bar moves: the overlay remains independent of bar placement.
     Timer {
         id: settle
         interval: 1500
@@ -133,25 +148,48 @@ ShellRoot {
                 "the island built with a recording reports it: " + coordinator.reportedActivity)
             test.check(coordinator.reportedPrivacy === null, "no privacy state with the indicators off")
             hostShell.bar.position = "bottom"
-            legacy.start()
+            hostShell.bar.barSize = 72
+            moved.start()
         }
     }
     Timer {
-        id: legacy
+        id: moved
         interval: 500
         onTriggered: {
-            test.check(test.island.islandMode === false, "a bottom bar leaves island mode")
-            test.check(coordinator.reportedActivity === "", "legacy mode shows no activity: " + coordinator.reportedActivity)
+            test.check(test.island.surface === test.surface, "bar movement keeps the same surface object")
+            var defaultPillHeight = test.surface.tokens.pillMinHeight + test.surface.tokens.small
+            test.check(test.surface.pillHeight === defaultPillHeight,
+                "a bottom bar uses the default pill height, not its 72px thickness")
+            test.check(coordinator.reportedActivity === "recording|",
+                "bar placement does not suppress island activity: " + coordinator.reportedActivity)
+            hostShell.bar.position = "left"
+            hostShell.bar.vertical = true
+            hostShell.bar.barSize = 90
+            side.start()
+        }
+    }
+    Timer {
+        id: side
+        interval: 500
+        onTriggered: {
+            test.check(test.island.surface === test.surface, "a vertical bar keeps the same surface object")
+            var defaultPillHeight = test.surface.tokens.pillMinHeight + test.surface.tokens.small
+            test.check(test.surface.pillHeight === defaultPillHeight,
+                "a vertical bar uses the default pill height, not its 90px thickness")
             hostShell.bar.position = "top"
-            back.start()
+            hostShell.bar.vertical = false
+            hostShell.bar.barSize = 26
+            hostShell.bar.barHidden = true
+            hidden.start()
         }
     }
     Timer {
-        id: back
+        id: hidden
         interval: 500
         onTriggered: {
-            test.check(test.island.islandMode === true, "a top bar brings the island back")
-            test.check(coordinator.reportedActivity === "recording|", "and its activity again: " + coordinator.reportedActivity)
+            test.check(test.island.surface === test.surface, "hiding the bar keeps the same surface object")
+            test.check(test.surface.pillHeight === 26, "a hidden bar does not change island geometry")
+            test.check(coordinator.reportedActivity === "recording|", "island activity remains: " + coordinator.reportedActivity)
             test.finish()
         }
     }

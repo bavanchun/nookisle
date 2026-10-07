@@ -31,7 +31,6 @@ TestCase {
         property bool highContrast: false
         property bool remoteArtwork: false
         property bool autoShow: true
-        property bool island: true
         property bool hud: true
         property bool visualizer: true
         property bool tint: true
@@ -68,16 +67,6 @@ TestCase {
         readonly property string displayState: !lyricsEnabled ? "off"
             : lyricsState === "idle" ? (meta ? "loading" : "no-meta") : lyricsState
         function retry() {}
-    }
-    Component {
-        id: legacyContentComponent
-        IslandContent {
-            tokens: design
-            coordinator: facade
-            width: design.expandedWidth
-            height: design.panelHeight(design.expandedWidth)
-            expanded: true
-        }
     }
     Component {
         id: surfaceComponent
@@ -629,9 +618,6 @@ TestCase {
         tryVerify(function () { return findChild(surface, "shelfViewLoader").item !== null; }, 1000);
         waitForRendering(surface);
         verifyReadsOnNotch(card, findChild(surface, "shelfEmptyState"), 3, "the empty shelf hint");
-        // The legacy panel is untouched: it keeps the theme's own colours.
-        var legacy = createTemporaryObject(legacyContentComponent, test);
-        compare(findChild(legacy, "trackTitle").color, design.text);
     }
     // A dark theme whose colours already read on black keeps them.
     // The island's text takes the first installed of Inter, Roboto and Noto

@@ -205,9 +205,9 @@ TestCase {
         compare(findChild(all, "settingButtonFill").color, design.primaryFill)
         verify(!follow.checked)
 
-        var toggle = input("island")
+        var toggle = input("autoShow")
         var track = findChild(toggle, "settingSwitchTrack"), knob = findChild(toggle, "settingSwitchKnob")
-        var row = findChild(pane, "settingControl-island")
+        var row = findChild(pane, "settingControl-autoShow")
         verify(track.mapToItem(row, track.width, 0).x <= row.width + 0.5, "the switch stays inside its row")
         verify(toggle.checked)
         compare(track.color, design.primaryFill)
@@ -271,7 +271,7 @@ TestCase {
     // accent when reached by keyboard.
     function test_every_control_shows_keyboard_focus() {
         pane.showSection("general")
-        var toggle = input("island")
+        var toggle = input("autoShow")
         toggle.forceActiveFocus(Qt.TabFocusReason)
         compare(findChild(toggle, "settingSwitchTrack").border.width, design.focusWidth)
         var slider = findChild(pane, "settingSlider-hoverDwell")
@@ -490,8 +490,8 @@ TestCase {
         var top = choice.mapToItem(page, 0, 0).y
         verify(page.contentY > 0, "the page scrolled")
         verify(top >= 0 && top + choice.height <= page.height, "the focused choice is in view")
-        input("island").forceActiveFocus(Qt.TabFocusReason)
-        var toggle = input("island")
+        input("autoShow").forceActiveFocus(Qt.TabFocusReason)
+        var toggle = input("autoShow")
         verify(toggle.mapToItem(page, 0, 0).y >= 0, "scrolling back up shows the switch")
     }
     // Choices are a radio group: Tab reaches only the chosen one, and the
@@ -516,7 +516,7 @@ TestCase {
     }
     // Screen readers hear each row's help with its control.
     function test_controls_carry_their_help() {
-        compare(input("island").Accessible.description, Settings.entry("island").help)
+        compare(input("autoShow").Accessible.description, Settings.entry("autoShow").help)
         compare(findChild(pane, "settingSlider-hoverDwell").Accessible.description, Settings.entry("hoverDwell").help)
         compare(findChild(pane, "settingChoice-displayMode-all").Accessible.description, Settings.entry("displayMode").help)
     }
@@ -545,14 +545,14 @@ TestCase {
         verify(findChild(pane, "settingControl-hoverDwell"), "Escape returns to the section")
     }
     function test_find_shortcut_focuses_the_search() {
-        input("island").forceActiveFocus()
+        input("autoShow").forceActiveFocus()
         keySequence(StandardKey.Find)
         verify(findChild(pane, "settingsSearch").activeFocus)
     }
     // A section resets to its defaults after one confirmation, and never
     // clears the calendars the person added.
     function test_reset_section_asks_then_restores_defaults() {
-        coordinator.configure({ hoverDwell: 700, island: false })
+        coordinator.configure({ hoverDwell: 700, autoShow: false })
         var reset = findChild(pane, "settingsResetSection")
         mouseClick(reveal(reset))
         compare(coordinator.fileSettings.hoverDwell, 700, "nothing changes before the confirmation")
@@ -561,7 +561,7 @@ TestCase {
         mouseClick(reveal(reset))
         mouseClick(reveal(findChild(pane, "settingsResetConfirm")))
         compare(coordinator.fileSettings.hoverDwell, 300)
-        compare(coordinator.settings.island, true)
+        compare(coordinator.settings.autoShow, true)
         var batch = Settings.resetValues("calendar")
         verify(!("calendarSources" in batch), "calendar sources are data and stay")
         compare(batch.showCalendar, false)
@@ -658,7 +658,7 @@ TestCase {
             verify(heading && heading.visible, labels[i] + " heading")
         }
         var general = Settings.sections().filter(function (s) { return s.id === "general" })[0]
-        compare(general.keys.slice(0, 3), ["autoShow", "island", "openOnHover"])
+        compare(general.keys.slice(0, 3), ["autoShow", "openOnHover", "hoverDwell"])
         var flat = []
         general.groups.forEach(function (g) { flat = flat.concat(g.keys) })
         compare(flat, general.keys)
@@ -667,13 +667,13 @@ TestCase {
     }
 
     function test_switch_edit_writes_through_configure() {
-        var toggle = input("island")
-        verify(toggle.checked, "island shows its default, on")
+        var toggle = input("autoShow")
+        verify(toggle.checked, "automatic showing uses its default, on")
         mouseClick(reveal(toggle))
-        compare(coordinator.calls, [{ island: false }])
-        compare(coordinator.settings.island, false)
+        compare(coordinator.calls, [{ autoShow: false }])
+        compare(coordinator.settings.autoShow, false)
         verify(!toggle.checked)
-        verify(!findChild(pane, "settingError-island").visible)
+        verify(!findChild(pane, "settingError-autoShow").visible)
     }
 
     // Keys move the slider at once but save once they rest: holding a key
@@ -745,17 +745,17 @@ TestCase {
 
     function test_refused_edit_reverts_and_says_so() {
         coordinator.refuse = true
-        var toggle = input("island")
+        var toggle = input("autoShow")
         mouseClick(reveal(toggle))
         compare(coordinator.calls.length, 1)
         verify(toggle.checked, "the switch snaps back to the stored value")
-        verify(findChild(pane, "settingError-island").visible)
-        compare(findChild(pane, "settingError-island").text,
+        verify(findChild(pane, "settingError-autoShow").visible)
+        compare(findChild(pane, "settingError-autoShow").text,
             "Not saved: settings.json could not be written. Check that ~/.config/nookisle is writable.",
             "a failed save says so, rather than blaming the value")
         coordinator.refuse = false
         mouseClick(reveal(toggle))
-        verify(!findChild(pane, "settingError-island").visible)
+        verify(!findChild(pane, "settingError-autoShow").visible)
     }
 
     function test_outside_changes_reach_the_controls() {

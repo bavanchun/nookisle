@@ -6,7 +6,7 @@ TestCase {
     name: "Settings"
 
     readonly property var legacyKeys: ["autoShow", "reducedMotion", "highContrast", "remoteArtwork",
-        "island", "hud", "visualizer", "peek", "tint", "power", "lyrics"]
+        "hud", "visualizer", "peek", "tint", "power", "lyrics"]
 
     function test_every_entry_is_complete() {
         var seen = {}
@@ -44,7 +44,7 @@ TestCase {
     function test_defaults() {
         var all = Settings.defaults()
         compare(Object.keys(all), Settings.keys())
-        compare(all.island, true)
+        compare(Settings.entry("island"), null, "the removed island toggle is not a setting")
         compare(all.hud, false)
         compare(all.lyrics, false)
         compare(all.remoteArtwork, false)
@@ -119,9 +119,9 @@ TestCase {
     }
 
     function test_validate_known_keys() {
-        verify(Settings.validate("island", false))
-        verify(!Settings.validate("island", "false"))
-        verify(!Settings.validate("island", 0))
+        verify(!Settings.validate("island", false), "the removed island toggle is rejected by configure")
+        verify(Settings.validate("autoShow", false))
+        verify(!Settings.validate("autoShow", "false"))
         verify(Settings.validate("hoverDwell", 0))
         verify(Settings.validate("hoverDwell", 1000))
         verify(!Settings.validate("hoverDwell", -1))
@@ -212,22 +212,35 @@ TestCase {
 
     function test_batches_are_all_or_nothing() {
         verify(Settings.validateBatch({}))
-        verify(Settings.validateBatch({ island: true, hoverDwell: 450 }))
-        verify(!Settings.validateBatch({ island: true, hoverDwell: "x" }))
-        verify(!Settings.validateBatch({ island: true, unknown: 1 }))
+        verify(Settings.validateBatch({ autoShow: true, hoverDwell: 450 }))
+        verify(!Settings.validateBatch({ autoShow: true, hoverDwell: "x" }))
+        verify(!Settings.validateBatch({ autoShow: true, unknown: 1 }))
         verify(!Settings.validateBatch({ hud: "x", leaveGrace: 10 }))
         verify(!Settings.validateBatch(null))
         verify(!Settings.validateBatch([true]))
         verify(!Settings.validateBatch("island"))
     }
 
-    function test_resolve_keeps_valid_values_only() {
+    function test_file_load_ignores_stored_island_values_and_keeps_other_keys() {
         compare(Settings.resolve(null), Settings.defaults("file"))
         compare(Settings.resolve([1, 2]), Settings.defaults("file"))
-        var resolved = Settings.resolve({ hoverDwell: 700, leaveGrace: "x", bogus: true, island: false })
-        compare(resolved.hoverDwell, 700)
-        compare(resolved.leaveGrace, 100)
-        compare(Object.keys(resolved), Settings.keys("file"))
+        for (var i = 0; i < 2; ++i) {
+            var stored = { hoverDwell: 700, leaveGrace: 80, island: i === 0 }
+            var text = JSON.stringify({ version: 1, values: stored })
+            var parsed = Settings.parseFile(text)
+            compare(parsed.island, i === 0, "the old file itself is valid JSON")
+            var notes = []
+            var resolved = Settings.resolve(parsed, notes)
+            compare(resolved.hoverDwell, 700, "a neighboring valid value survives the removed key")
+            compare(resolved.leaveGrace, 80)
+            compare(Object.keys(resolved), Settings.keys("file"))
+            verify(resolved.island === undefined, "stored island:" + (i === 0) + " is ignored")
+            compare(notes, [], "a retired key is ignored without treating the file as corrupt")
+            var saved = JSON.parse(Settings.serialise(parsed)).values
+            compare(saved.hoverDwell, 700)
+            compare(saved.leaveGrace, 80)
+            verify(saved.island === undefined, "the next save drops the retired key")
+        }
     }
 
     // Displays: follow by default; a screen setting holds a connector name.

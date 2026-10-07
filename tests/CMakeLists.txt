@@ -122,9 +122,6 @@ if(NOOKISLE_HOST_TESTS)
     add_test(NAME qml-panel-power COMMAND ${NODE_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-panel-power.js ${QML_TEST_RUNNER})
     set_tests_properties(qml-panel-power PROPERTIES TIMEOUT 30)
-    add_test(NAME qml-panel-mode-tree COMMAND ${NODE_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-panel-mode-tree.js ${QML_TEST_RUNNER})
-    set_tests_properties(qml-panel-mode-tree PROPERTIES TIMEOUT 30)
     if(NOOKISLE_CALENDAR)
         add_test(NAME qml-calendar-integration COMMAND ${NODE_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/qml/run-calendar-integration.js
@@ -132,7 +129,7 @@ if(NOOKISLE_HOST_TESTS)
         set_tests_properties(qml-calendar-integration PROPERTIES TIMEOUT 30)
     endif()
     file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/build/ui-preview")
-    foreach(ui_test IN ITEMS controls island-state bar-widget shelf shelf-model shelf-view island-surface hud hud-bar hud-styles tint peek island-input settings motion camera-gate settings-window onboarding fullscreen-policy mic-state catch-zone battery notch-shape closed-model activity-model privacy device-events timers idle home calendar spectrum-frames displays window-move)
+    foreach(ui_test IN ITEMS controls bar-widget shelf shelf-model shelf-view island-surface hud hud-bar hud-styles tint peek island-input settings motion camera-gate settings-window onboarding fullscreen-policy mic-state catch-zone battery notch-shape closed-model activity-model privacy device-events timers idle home calendar spectrum-frames displays window-move)
         add_test(NAME qml-${ui_test} COMMAND ${CMAKE_COMMAND} -E env
             --unset=DISPLAY --unset=WAYLAND_DISPLAY
             QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME=generic NO_AT_BRIDGE=1

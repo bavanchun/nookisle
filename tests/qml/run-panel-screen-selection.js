@@ -12,45 +12,23 @@ function section(start, end) {
     if (begin < 0 || finish < 0) throw new Error("Production Panel screen contract not found");
     return source.slice(begin, finish);
 }
-// Exercise production bindings and handlers, not a copied selection engine.
-// Only the compositor inventory is supplied; no native window is created.
-const binding = section("    property string chosenScreenName:", "    readonly property var monitor:")
-    .replaceAll("Quickshell.screens", "testScreens")
-    .replaceAll("Hyprland.focusedMonitor", "testFocusedMonitor");
-const handler = section(source.includes("    function rememberTargetScreen()")
-    ? "    function rememberTargetScreen()" : "    onTargetScreenChanged:", "    onArtworkPathChanged:");
-const visibilityBindings = section("    readonly property bool surfaceVisible:", "    readonly property string artworkPath:");
-// Stops before onIslandModeChanged: the handlers from there on reference
-// windowScreen/fullscreen island-only triggers this legacy-only fixture does
-// not stub. islandSurfaceConnections below carries the one handler
-// (Connections{target:root.surface}) the island fixture actually needs.
-const visibilityHandlers = section("    function settleOrAnimate()", "    onIslandModeChanged:");
-// Island mode's own screen choice: a separate, non-reactive binding that
-// moves only while collapsed (plan Decisions, "Multi-monitor"), unlike the
-// legacy targetScreen binding above.
-const islandModeBinding = section("    readonly property bool islandMode:", "    property bool opened:");
+// Exercise the production island bindings and handlers with an isolated screen
+// inventory and surface facade; no compositor or native window is created.
 const islandScreenSection = section("    property string islandScreenName:", "    readonly property var windowScreen:")
     .replaceAll("Quickshell.screens", "testScreens")
     .replaceAll("Hyprland.focusedMonitor", "testFocusedMonitor");
-// The extra windows' screens with displayMode "all".
 const extraScreensBinding = section("    readonly property var extraScreens:", "    Variants {")
     .replaceAll("Quickshell.screens", "testScreens");
-const islandOpenClose = section("    function open(payloadJson)", "    function toggleExpanded()");
-// Self-contained: only reads/writes root and surface, no bare `contentLoader`
-// id like the legacy onExpandedChanged handler that visibilityHandlers carries.
-const islandSurfaceConnections = section("    Connections {\n        target: root.surface", "    function rememberTargetScreen()");
-// The layer's keyboard focus, with every Panel handler that can end a
-// summon: the island must never hold the keyboard exclusively once it is
-// hidden or collapsed, and a hover open must never take it.
+const islandOpenClose = section("    function open(payloadJson)", "    onPanelAllowedChanged:");
+const islandSurfaceConnections = section("    Connections {\n        target: root.surface", "    onArtworkPathChanged:");
 const panelAllowedBinding = section("    readonly property bool panelAllowed:", "    readonly property var hostBar:");
-const islandVisibility = section("    readonly property bool surfaceVisible:", "    readonly property bool motionAllowed:");
-const allowedHandler = section("    onPanelAllowedChanged:", "    onExpandedChanged:");
-const islandHandlers = section("    onIslandModeChanged:", "    Connections {\n        target: Hyprland");
+const islandVisibility = section("    readonly property bool islandVisible:", "    readonly property string artworkPath:");
+const allowedHandler = section("    onPanelAllowedChanged:", "    onIslandVisibleChanged:");
+const islandHandlers = section("    onWindowScreenChanged:", "    Connections {\n        target: Hyprland");
 const focusBinding = section("        readonly property string focusMode:", "        mask: Region")
     .replace("WlrLayershell.keyboardFocus:", "property int keyboardFocus:")
     .replaceAll("WlrKeyboardFocus.", "wlrFocus.");
-// The fullscreen value a held HUD drag latches until its release.
-const fullscreenLatch = section("    readonly property bool hudHeld:", "    readonly property bool surfaceVisible:");
+const fullscreenLatch = section("    readonly property bool hudHeld:", "    // The Overlay window");
 const directory = mkdtempSync(join(tmpdir(), "nookisle-screen-test-"));
 try {
     const path = join(directory, "tst-screen.qml");
@@ -61,66 +39,6 @@ import "${join(repository, "qml/Displays.js")}" as Displays
 TestCase {
     id: test
     name: "ProductionPanelScreenSelection"
-    QtObject { id: morph; property int stops: 0; function stop() { stops++; } }
-    Component {
-        id: selectionComponent
-        Item {
-            id: root
-            property var testScreens: []
-            property var testFocusedMonitor: null
-            property bool expanded: false
-            property real expansion: 0
-${binding}
-${handler}
-        }
-    }
-    Component {
-        id: visibilityComponent
-        Item {
-            id: root
-            property bool opened: false
-            property bool expanded: false
-            property bool dismissed: false
-            property bool explicitOpen: false
-            property real expansion: 0
-            property bool panelAllowed: true
-            property bool fullscreen: false
-            property var targetScreen: ({name: "A"})
-            property string chosenScreenName: "A"
-            property real anchorLeftX: -1
-            property real anchorCenterX: -1
-            // islandMode stays false here: this fixture only exercises the
-            // legacy visibility contract. surface is a stub so the sliced
-            // legacy handlers (which touch it only behind an "islandMode"
-            // guard that is always false here) never dereference a real one.
-            property bool islandMode: false
-            property QtObject coordinator: QtObject {
-                property bool viewVisible: false
-                property bool viewExpanded: false
-            }
-            QtObject { id: palette; property bool reducedMotion: true }
-            QtObject {
-                id: morph
-                property real to: 0
-                function stop() {}
-                function start() { root.expansion = to }
-            }
-            Item { id: contentLoader; property Item item: Item {} }
-            QtObject { id: panel; property bool keyboardLent: false }
-            // Panel reads the island surface as root.surface.
-            readonly property var surface: surfaceObject
-            QtObject {
-                id: surfaceObject
-                property bool expanded: false
-                function expandTo(target) { expanded = true }
-                function collapse() { expanded = false }
-                function resetForHost() { collapse() }
-                function forceActiveFocus() {}
-            }
-${visibilityBindings}
-${visibilityHandlers}
-        }
-    }
     Component {
         id: islandSelectionComponent
         Item {
@@ -130,28 +48,28 @@ ${visibilityHandlers}
             property bool panelAllowed: true
             property bool opened: false
             property bool explicitOpen: false
-            property bool dismissed: false
-            property string chosenScreenName: ""
-            property real anchorLeftX: -1
-            property real anchorCenterX: -1
-            property QtObject coordinator: QtObject { property bool island: true; property bool autoShow: true }
+            property bool hudHeld: false
+            readonly property bool islandViewVisible: true
+            readonly property bool islandViewExpanded: surface.expanded
+            property QtObject coordinator: QtObject { property bool autoShow: true; property bool viewVisible: false; property bool viewExpanded: false }
             property QtObject hostBar: QtObject { property string position: "top"; property bool barHidden: false }
             // The display settings, as Panel reads them from the file store.
             property string displayMode: "follow"
             property string preferredDisplay: ""
-            readonly property bool allDisplays: root.islandMode && displayMode === "all"
+            readonly property bool allDisplays: displayMode === "all"
             readonly property alias surfaceStub: surfaceObject
             // Screen selection is this fixture's only concern; syncSubscription
             // (called from islandSurfaceConnections) has no
             // subscription state to reconcile here.
-            function syncSubscription() {}
             QtObject { id: panel; property bool keyboardLent: false }
             // Panel reads the island surface as root.surface.
             readonly property var surface: surfaceObject
             QtObject {
                 id: surfaceObject
                 property bool expanded: false
-                property string view: "home"
+                    property string view: "home"
+                property var settings: ({ summonAutoClose: 3000 })
+                property int busyCount: 0
                 property int expandToCalls: 0
                 property int collapseCalls: 0
                 property int forceActiveFocusCalls: 0
@@ -167,7 +85,6 @@ ${visibilityHandlers}
                 function scheduleAutoClose(ms) {}
                 function cancelAutoClose() {}
             }
-${islandModeBinding}
 ${islandScreenSection}
 ${extraScreensBinding}
 ${islandOpenClose}
@@ -179,7 +96,6 @@ ${islandSurfaceConnections}
         Item {
             id: root
             property QtObject coordinator: QtObject {
-                property bool island: true
                 property bool autoShow: true
                 property bool panelAllowed: true
                 property bool viewVisible: false
@@ -189,36 +105,31 @@ ${islandSurfaceConnections}
             }
             property QtObject hostBar: QtObject { property string position: "top"; property bool barHidden: false }
             property bool opened: false
-            property bool expanded: false
-            property bool dismissed: false
             property bool explicitOpen: false
-            property real expansion: 0
+            property bool hudHeld: false
+            readonly property bool islandViewVisible: true
+            readonly property bool islandViewExpanded: surface.expanded
             property bool fullscreen: false
-            property var targetScreen: ({name: "A"})
             property var windowScreen: ({name: "A"})
-            property string chosenScreenName: ""
-            property real anchorLeftX: -1
-            property real anchorCenterX: -1
             property bool pendingScreenMove: false
             property int screenMoves: 0
             readonly property alias surfaceStub: surfaceObject
             readonly property alias window: panel
             function applyIslandScreen() { screenMoves++ }
-            function syncSubscription() {}
-            QtObject { id: morph; function stop() {} }
-            readonly property var wlrFocus: ({None: 0, OnDemand: 1, Exclusive: 2})
+            readonly property var wlrFocus: ({None: 0, Exclusive: 2})
             // Panel reads the island surface as root.surface.
             readonly property var surface: surfaceObject
             QtObject {
                 id: surfaceObject
                 property bool expanded: false
-                property string view: "home"
+                    property string view: "home"
+                property var settings: ({ summonAutoClose: 3000 })
+                property int busyCount: 0
                 signal collapseRequested()
                 signal settingsOpened()
                 // The surface's close guard contract: collapse() refuses
                 // while busy unless forced (Escape); resetForHost() is the
                 // host's safety reset, which drops every hold and closes.
-                property int busyCount: 0
                 property int hostResets: 0
                 function beginBusy() { busyCount++ }
                 function expandTo(target) { view = target; expanded = true }
@@ -235,11 +146,10 @@ ${islandSurfaceConnections}
             }
             QtObject {
                 id: panel
-                property bool visible: root.activeVisible
+                property bool visible: root.islandVisible
 ${focusBinding}
             }
 ${panelAllowedBinding}
-${islandModeBinding}
 ${islandVisibility}
 ${islandOpenClose}
 ${allowedHandler}
@@ -249,7 +159,6 @@ ${islandSurfaceConnections}
     }
     function summoned() {
         var panel = createTemporaryObject(islandFocusComponent, test)
-        compare(panel.islandMode, true)
         compare(panel.window.keyboardFocus, 0, "a collapsed island never holds the keyboard")
         panel.open("{}")
         compare(panel.window.keyboardFocus, 2, "a summoned, shown island takes the keyboard exclusively")
@@ -259,18 +168,16 @@ ${islandSurfaceConnections}
     // no deferred step that could leave a hidden or collapsed layer holding
     // the user's keyboard.
     function test_islandReleasesKeyboard_data() {
-        return [{tag: "escape-or-view-close"}, {tag: "host-close"}, {tag: "lock"}, {tag: "island-off"},
-            {tag: "screen-move"}, {tag: "screen-lost"}, {tag: "bar-hidden"}, {tag: "service-gone"}]
+        return [{tag: "escape-or-view-close"}, {tag: "host-close"}, {tag: "lock"},
+            {tag: "screen-move"}, {tag: "screen-lost"}, {tag: "service-gone"}]
     }
     function test_islandReleasesKeyboard(data) {
         var panel = summoned()
         if (data.tag === "escape-or-view-close") panel.surfaceStub.collapse()
         else if (data.tag === "host-close") panel.close()
         else if (data.tag === "lock") panel.coordinator.panelAllowed = false
-        else if (data.tag === "island-off") panel.coordinator.island = false
         else if (data.tag === "screen-move") panel.windowScreen = {name: "B"}
         else if (data.tag === "screen-lost") panel.windowScreen = null
-        else if (data.tag === "bar-hidden") panel.hostBar.barHidden = true
         else if (data.tag === "service-gone") panel.coordinator = null
         compare(panel.window.keyboardFocus, 0)
         compare(panel.explicitOpen, false, "the summon itself ended")
@@ -345,11 +252,11 @@ ${islandSurfaceConnections}
         compare(panel.window.keyboardFocus, 0)
     }
     // Host safety resets bypass the close guard: a lock or panel disallow,
-    // leaving island mode, a screen change and fullscreen all close the
+    // a screen change and fullscreen all close the
     // island and clear its busy count, so it never shows over a lock screen
-    // or carries a menu's hold to another mode or screen.
+    // or carries a menu's hold to another screen.
     function test_islandHostResetsBypassTheCloseGuard_data() {
-        return [{tag: "lock"}, {tag: "island-off"}, {tag: "bar-hidden"}, {tag: "service-gone"},
+        return [{tag: "lock"}, {tag: "service-gone"},
             {tag: "screen-move"}, {tag: "screen-lost"}, {tag: "fullscreen"}]
     }
     function test_islandHostResetsBypassTheCloseGuard(data) {
@@ -362,8 +269,6 @@ ${islandSurfaceConnections}
         panel.surfaceStub.beginBusy()
         compare(panel.surfaceStub.expanded, true)
         if (data.tag === "lock") panel.coordinator.panelAllowed = false
-        else if (data.tag === "island-off") panel.coordinator.island = false
-        else if (data.tag === "bar-hidden") panel.hostBar.barHidden = true
         else if (data.tag === "service-gone") panel.coordinator = null
         else if (data.tag === "screen-move") panel.windowScreen = {name: "B"}
         else if (data.tag === "screen-lost") panel.windowScreen = null
@@ -411,72 +316,6 @@ ${islandSurfaceConnections}
         panel.coordinator.panelAllowed = true
         compare(panel.window.visible, true)
         compare(panel.window.keyboardFocus, 0)
-    }
-    function test_legacyPanelKeepsOnDemandFocus() {
-        var panel = createTemporaryObject(islandFocusComponent, test)
-        panel.coordinator.island = false
-        panel.open("{}")
-        compare(panel.window.keyboardFocus, 1)
-        panel.close()
-        compare(panel.window.keyboardFocus, 0)
-    }
-    function test_visibilityClosesSynchronously_data() {
-        return [{tag: "normal-close", full: false, locked: false},
-            {tag: "fullscreen-close", full: true, locked: false},
-            {tag: "lock", full: false, locked: true}]
-    }
-    function test_visibilityClosesSynchronously(data) {
-        var panel = createTemporaryObject(visibilityComponent, test)
-        panel.fullscreen = data.full
-        panel.open("{}")
-        compare(panel.surfaceVisible, true)
-        compare(panel.coordinator.viewVisible, true)
-        compare(panel.coordinator.viewExpanded, true)
-        if (data.locked) panel.panelAllowed = false
-        else panel.close()
-        compare(panel.surfaceVisible, false)
-        compare(panel.expanded, false)
-        compare(panel.opened, false)
-        compare(panel.expansion, 0)
-        compare(panel.coordinator.viewVisible, false)
-        compare(panel.coordinator.viewExpanded, false)
-    }
-    function test_retainsChoiceWithoutSynchronousBindingFeedback() {
-        var panel = createTemporaryObject(selectionComponent, test)
-        var first = {name: "A"}, second = {name: "B"}
-        panel.testFocusedMonitor = first
-        panel.testScreens = [first, second]
-        compare(panel.targetScreen.name, "A")
-        compare(panel.chosenScreenName, "")
-        tryCompare(panel, "chosenScreenName", "A")
-        panel.expanded = true
-        panel.expansion = 1
-        panel.testFocusedMonitor = second
-        compare(panel.targetScreen.name, "A")
-        compare(panel.expanded, true)
-        panel.testScreens = [second]
-        compare(panel.targetScreen.name, "B")
-        compare(panel.expanded, false)
-        compare(panel.expansion, 0)
-        compare(panel.chosenScreenName, "A")
-        tryCompare(panel, "chosenScreenName", "B")
-    }
-    function test_rapidRemovalOnlyRetainsCurrentTarget() {
-        var panel = createTemporaryObject(selectionComponent, test)
-        panel.testScreens = [{name: "A"}]
-        panel.testScreens = [{name: "B"}]
-        panel.testScreens = [{name: "C"}]
-        compare(panel.chosenScreenName, "")
-        tryCompare(panel, "chosenScreenName", "C")
-        panel.expanded = true
-        panel.expansion = 0.7
-        panel.testScreens = []
-        compare(panel.targetScreen, null)
-        compare(panel.expanded, false)
-        compare(panel.expansion, 0)
-        panel.testScreens = [{name: "D"}]
-        tryCompare(panel, "chosenScreenName", "D")
-        compare(panel.targetScreen.name, "D")
     }
     function test_islandFocusMovesWhileCollapsed() {
         var panel = createTemporaryObject(islandSelectionComponent, test)
@@ -574,20 +413,42 @@ ${islandSurfaceConnections}
         compare(panel.extraScreens, [], "follow has one island")
         compare(panel.islandScreenName, "D", "on the focused screen")
     }
-    function test_islandModeFalseForNonTopOrHiddenBar_data() {
-        return [{tag: "bottom-bar", position: "bottom", hidden: false},
-            {tag: "hidden-bar", position: "top", hidden: true}]
+    function test_barChangesPreserveSummon_data() {
+        return [{tag: "bottom", position: "bottom", hidden: false},
+            {tag: "hidden-top", position: "top", hidden: true}]
     }
-    function test_islandModeFalseForNonTopOrHiddenBar(data) {
-        var panel = createTemporaryObject(islandSelectionComponent, test)
-        compare(panel.islandMode, true)
+    function test_barChangesPreserveSummon(data) {
+        var panel = summoned()
         panel.hostBar.position = data.position
         panel.hostBar.barHidden = data.hidden
-        compare(panel.islandMode, false)
+        compare(panel.window.visible, true)
+        compare(panel.window.keyboardFocus, 2)
+        compare(panel.surfaceStub.expanded, true)
+        compare(panel.explicitOpen, true)
+    }
+    function test_autoShowOffKeepsExplicitSummon() {
+        var panel = createTemporaryObject(islandFocusComponent, test)
+        panel.coordinator.autoShow = false
+        compare(panel.window.visible, false)
+        panel.open("{}")
+        compare(panel.window.visible, true)
+        compare(panel.window.keyboardFocus, 2)
+        panel.close()
+        compare(panel.window.visible, false)
+        compare(panel.window.keyboardFocus, 0)
+    }
+    function test_heldHudDefersOrdinaryClose() {
+        var panel = summoned()
+        panel.hudHeld = true
+        panel.close()
+        compare(panel.surfaceStub.expanded, true)
+        compare(panel.explicitOpen, true)
+        panel.hudHeld = false
+        panel.close()
+        compare(panel.surfaceStub.expanded, false)
     }
     function test_islandSurfaceExpansionMirrorsOpened() {
         var panel = createTemporaryObject(islandSelectionComponent, test)
-        compare(panel.islandMode, true)
         compare(panel.opened, false)
         panel.surfaceStub.expandTo("home")
         compare(panel.opened, true)
@@ -607,6 +468,7 @@ ${islandSurfaceConnections}
             readonly property var surface: surfaceObject
             QtObject {
                 id: surfaceObject
+                property bool expanded: false
                 property bool ownBar: true
                 readonly property bool hudHeldHere: hudModel.held && ownBar
             }

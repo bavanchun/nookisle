@@ -35,7 +35,6 @@ TestCase {
         property bool remoteArtwork: false
         property bool autoShow: true
         property int retries: 0
-        property bool island: true
         property bool hud: true
         property bool visualizer: true
         property bool lyrics: false
