@@ -118,6 +118,9 @@ if(BUILD_TESTING)
     add_test(NAME install-plugin COMMAND ${PYTHON3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/test-install-plugin.py)
     set_tests_properties(install-plugin PROPERTIES TIMEOUT 30)
+    add_test(NAME release-guard COMMAND ${PYTHON3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/test-release-guard.py)
+    set_tests_properties(release-guard PROPERTIES TIMEOUT 60)
 endif()
 set(CPACK_GENERATOR "TGZ")
 set(CPACK_PACKAGE_NAME "nookisle")

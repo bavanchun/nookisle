@@ -28,6 +28,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Guard version consistency and release notes
+        run: scripts/check-release-version.sh
+
       - name: Set Arch Linux Archive mirror and install dependencies
         run: |
           echo "Server = https://archive.archlinux.org/repos/2026/10/01/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist

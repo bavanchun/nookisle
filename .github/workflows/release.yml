@@ -28,31 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Guard version consistency and release notes
-        run: |
-          manifest_version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' manifest.json | head -n 1)
-          if [ -z "${manifest_version}" ]; then
-            echo "ERROR: Failed to parse version from manifest.json. Fix manifest.json." >&2
-            exit 1
-          fi
-
-          if [ "${GITHUB_REF_NAME}" != "v${manifest_version}" ]; then
-            echo "ERROR: Tag '${GITHUB_REF_NAME}' does not match manifest.json version 'v${manifest_version}'. Fix manifest.json or tag." >&2
-            exit 1
-          fi
-
-          cmake_version=$(sed -n 's/.*project(.*VERSION[[:space:]]\+\([0-9.]\+\).*/\1/p' CMakeLists.txt | head -n 1)
-          if [ "${cmake_version}" != "${manifest_version}" ]; then
-            echo "ERROR: CMakeLists.txt project VERSION '${cmake_version}' does not match manifest.json version '${manifest_version}'. Fix CMakeLists.txt." >&2
-            exit 1
-          fi
-
-          notes_file="docs/releases/${manifest_version}.md"
-          if [ ! -s "${notes_file}" ]; then
-            echo "ERROR: Commit the release notes at ${notes_file} before tagging." >&2
-            exit 1
-          fi
-
-          echo "Guard passed: tag ${GITHUB_REF_NAME} matches manifest.json and CMakeLists.txt (${manifest_version}), and ${notes_file} exists"
+        run: scripts/check-release-version.sh --tag "${GITHUB_REF_NAME}"
 
       - name: Guard ancestor of main
         run: |
