@@ -109,7 +109,11 @@ Item {
     }
     onArtworkPathChanged: restartArtGrace()
     onArtWantedChanged: restartArtGrace()
-    Component.onCompleted: restartArtGrace()
+    Component.onCompleted: {
+        restartArtGrace();
+        seenKey = liveKey();
+        shownTitle = liveTitle();
+    }
     readonly property bool playing: endpoint && endpoint.status === "Playing"
     // The bars take the glyph's place whenever the visualizer is on, motion
     // is not reduced and the binary has not been found missing; paused or
@@ -455,19 +459,78 @@ Item {
     // rests elided: the closed notch never loops a marquee.
     readonly property real titleLeft: tokens.closedInset + glyphSize + tokens.gap
     readonly property real titleRight: centreRight
-    readonly property string trackTitle: endpoint && endpoint.presentation
-        ? String(endpoint.presentation.title || endpoint.presentation.hostApp || "") : ""
+    function liveTitle() {
+        return endpoint && endpoint.presentation
+            ? String(endpoint.presentation.title || endpoint.presentation.hostApp || "") : "";
+    }
+    function liveKey() {
+        return endpoint && endpoint.trackToken !== undefined ? JSON.stringify(endpoint.trackToken) : "";
+    }
+    readonly property string trackTitle: liveTitle()
+    // What the centre shows: never bound. A new track hands the title off
+    // (out, swap, in); the same track's metadata arriving in parts, a hidden
+    // window or reduced motion swap at once. The handlers read the endpoint
+    // itself, so they agree whichever of its bindings reached them first.
+    property string shownTitle: ""
+    property string seenKey: ""
+    property real titleFade: 1
+    property real titleLift: 0
+    // The surface clears it while the content model is swapping, so the
+    // model's own fade wins over the title's.
+    property bool handoffAllowed: true
+    readonly property bool handoffPossible: handoffAllowed && !tokens.reducedMotion && centreContent === "title"
+        && visible && !!Window.window && Window.window.visible
+    function syncTitle() {
+        var key = liveKey();
+        var moved = key !== seenKey;
+        var hadTrack = seenKey !== "";
+        seenKey = key;
+        if (moved && hadTrack && key !== "" && handoffPossible) {
+            titlePass.stop();
+            titlePassing = false;
+            titleHandoff.restart();
+        } else if (moved || !titleHandoff.running) {
+            settleTitle();
+        }
+    }
+    function settleTitle() {
+        titleHandoff.stop();
+        titleFade = 1;
+        titleLift = 0;
+        shownTitle = liveTitle();
+    }
+    function swapTitle() {
+        shownTitle = liveTitle();
+        titleLift = tokens.titleHandoffShift;
+    }
+    onHandoffPossibleChanged: if (!handoffPossible && titleHandoff.running) settleTitle()
+    onEndpointChanged: syncTitle()
+    onTrackTitleChanged: syncTitle()
+    SequentialAnimation {
+        id: titleHandoff
+        // The marquee measures the new title once the handoff has settled.
+        onRunningChanged: if (!running) Qt.callLater(root.startTitlePass)
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "titleFade"; to: 0; duration: root.tokens.closedFadeOut; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "titleLift"; to: -root.tokens.titleHandoffShift; duration: root.tokens.closedFadeOut; easing.type: Easing.InCubic }
+        }
+        ScriptAction { script: root.swapTitle() }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "titleFade"; to: 1; duration: root.tokens.closedFadeIn; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "titleLift"; to: 0; duration: root.tokens.closedFadeIn; easing.type: Easing.OutCubic }
+        }
+    }
     property bool titlePassing: false
     function startTitlePass() {
         titlePass.stop();
         titlePassing = false;
-        if (centreContent === "title" && playing && !tokens.reducedMotion && trackTitle !== "" && titleMarquee.overflowing) {
+        if (centreContent === "title" && playing && !tokens.reducedMotion && shownTitle !== "" && titleMarquee.overflowing && !titleHandoff.running) {
             titlePassing = true;
             titlePass.restart();
         }
     }
     // Deferred, so the marquee has measured the new title first.
-    onTrackTitleChanged: Qt.callLater(startTitlePass)
+    onShownTitleChanged: Qt.callLater(startTitlePass)
     onCentreContentChanged: Qt.callLater(startTitlePass)
     onPlayingChanged: Qt.callLater(startTitlePass)
     Timer {
@@ -489,10 +552,12 @@ Item {
             objectName: "closedTitle"
             visible: !root.titlePassing
             anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: root.titleLift
+            opacity: root.titleFade
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
-            text: root.trackTitle
+            text: root.shownTitle
             textFormat: Text.PlainText
             color: root.tokens.text
             font.family: root.tokens.fontFamily
@@ -508,7 +573,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width
             tokens: root.tokens
-            text: root.trackTitle
+            text: root.shownTitle
             color: root.tokens.text
             pixelSize: root.tokens.captionSize
             weight: Font.Medium

@@ -122,6 +122,63 @@ function byteLength(text, limit) {
     return bytes
 }
 
+// A title longer than this is never rewritten: the pattern work stays bounded
+// on text a web page controls.
+var MAX_STRIP = 200
+// The only suffixes a lookup may drop, each anchored to the end and free of
+// nesting: a remaster mark with an optional year, and a trailing featured
+// artist. Live, Remix, Acoustic, Edit, Version, Mix, Demo, Instrumental,
+// Karaoke, Sped Up and Slowed name another recording and are never touched.
+var VERSION_SUFFIXES = [
+    /\s+-\s+(?:\d{4}\s+)?Remaster(?:ed)?(?:\s+\d{4})?$/i,
+    /\s*[(\[]\s*(?:feat|ft|with)\.?\s+[^()\[\]]{1,100}[)\]]$/i
+]
+
+// The title without a remaster mark or a featured-artist tail, or the title
+// itself when nothing matches, the text is long, or nothing would be left.
+function stripVersionSuffix(title) {
+    var original = typeof title === "string" ? title : ""
+    if (original.length > MAX_STRIP)
+        return original
+    var text = original.trim()
+    var changed = true
+    while (changed) {
+        changed = false
+        for (var i = 0; i < VERSION_SUFFIXES.length; ++i) {
+            var next = text.replace(VERSION_SUFFIXES[i], "").trim()
+            if (next !== text) {
+                text = next
+                changed = true
+            }
+        }
+    }
+    return text ? text : original
+}
+
+// The ordered questions one lookup may ask: the track as reported, the same
+// without its album, then the stripped title without the album. Every entry
+// carries the same artist and length and only ever fewer or cleaner fields.
+function requestPlan(meta) {
+    if (!meta)
+        return []
+    var plan = [meta]
+    var seen = {}
+    seen[requestUrl("", meta)] = true
+    function add(entry) {
+        var identity = requestUrl("", entry)
+        if (seen[identity])
+            return
+        seen[identity] = true
+        plan.push(entry)
+    }
+    if (meta.album)
+        add({title: meta.title, artist: meta.artist, album: "", duration: meta.duration})
+    var stripped = stripVersionSuffix(meta.title)
+    if (stripped !== meta.title)
+        add({title: stripped, artist: meta.artist, album: "", duration: meta.duration})
+    return plan
+}
+
 function requestUrl(base, meta) {
     var enc = encodeURIComponent
     return base + "?track_name=" + enc(meta.title) + "&artist_name=" + enc(meta.artist)
@@ -149,10 +206,18 @@ function lruDrop(list, key) {
 // Reads an LRCLIB /api/get answer. Misses are cached (the track is simply
 // not there, and asking again would not change that); transport errors are
 // not, so Try again can reach the service. `state` is one of "ready",
-// "plain" (only untimed lyrics exist), "instrumental", "none" or "error".
-function interpret(status, text) {
+// "plain" (only untimed lyrics exist), "instrumental", "none" or "error";
+// an error's code is "busy" (503), "rate-limited" (429) or "network".
+// `expectedSeconds` is given for a narrower question only: the record must
+// then run within a second of the track, or it is another recording and
+// counts as a miss.
+function interpret(status, text, expectedSeconds) {
     if (status === 404)
         return {state: "none", cache: true}
+    if (status === 503)
+        return {state: "error", code: "busy", cache: false}
+    if (status === 429)
+        return {state: "error", code: "rate-limited", cache: false}
     if (status !== 200)
         return {state: "error", code: "network", cache: false}
     var body = null
@@ -162,6 +227,9 @@ function interpret(status, text) {
         return {state: "none", cache: true}
     }
     if (!body || typeof body !== "object" || Array.isArray(body))
+        return {state: "none", cache: true}
+    if (expectedSeconds !== undefined
+            && !(typeof body.duration === "number" && Math.abs(body.duration - expectedSeconds) <= 1))
         return {state: "none", cache: true}
     if (body.instrumental === true)
         return {state: "instrumental", cache: true}

@@ -1,42 +1,29 @@
 # Nookisle interface
 
-With `island` on (the default) and a top bar, Nookisle is a black notch
-over the bar's centre, after boring.notch's. Closed, it shows the live
+Nookisle always uses a black notch at the top centre of the screen,
+after boring.notch's. Closed, it shows the live
 activity; hovered, tapped or summoned, it opens into a 640×190 panel with Home
 and Shelf tabs. This page covers the notch, its header, Home, gestures, keys
 and settings; [island features](features.md) covers the level readout, peeks,
 battery, lyrics, the shelf and the calendar. When the host exposes a lock
-provider, either form shows only once that provider reports the session
+provider, the island shows only once that provider reports the session
 unlocked. Current Omarchy hosts hide the provider from plugins, so the plugin
 then relies on the compositor's session lock to keep it off screen (see
-[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints)).
+[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints)).
 
-With `island:false`, or on a bottom, side or vertical bar, the resident widget
-is inline in the existing status bar instead. Clicking its
-title toggles one shared detail panel below the clicked widget, on that display.
-The panel aligns to the widget's left edge, constrained by the output edges,
-so its origin remains clear beside the workspaces. [Panel.qml](../Panel.qml)
-retains center anchoring for older explicit IPC callers.
-There is no resident floating window. Closing the panel returns to the bar;
-output changes close details and cancel gestures. None of these actions changes
-playback. The widget follows the host bar's fullscreen visibility policy.
+The island stays at the screen top with a hidden, bottom, side or vertical
+bar. `autoShow:false` hides it until explicitly summoned; the fullscreen, lock
+and display policies still apply. Closing or moving it never changes playback.
 
 ## Geometry and appearance
 
 [DesignTokens.qml](../components/DesignTokens.qml) owns dimensions, spacing,
 fallback colors and finite motion timings. [Panel.qml](../Panel.qml) binds its
 palette, typography and corners to Omarchy's live Commons Color/Style tokens;
-[BarWidget.qml](../BarWidget.qml) follows the bar's foreground and font without
-an independent filled capsule. This keeps the controller part of the user's
-shell theme rather than imposing its own brand, including square corners when
-the shell requests them. Native logical pixels follow the display scale.
+[BarWidget.qml](../BarWidget.qml) reserves space without drawing controls.
+Native logical pixels follow the display scale.
 
-In the legacy widget, the bar adapts to the title width, up to 280 logical pixels. Title and playback
-share one continuous hover surface, which stays highlighted while details are
-open; their click actions remain separate. The panel emphasizes larger artwork
-and a grouped transport row, with source mode and count in the footer.
-
-With `island` on and the widget hosted on a top, non-vertical bar,
+On a top, non-vertical bar,
 `BarWidget.qml` becomes an invisible spacer exactly as wide as the closed
 notch's body, `DesignTokens.liveWidth − 2·flareClosed` (268) logical pixels;
 the notch's top flares overhang it by `flareClosed` (6px) on each side. It
@@ -46,49 +33,27 @@ is the screen-centred surface the user actually sees and clicks. This only
 reserves space correctly when the widget is the bar's centre anchor on a
 full-width top bar (`centerAnchor: "io.github.bavanchun.nookisle"` in
 `~/.config/omarchy/shell.json`), so flanking modules do not slide under the
-pill; on any other bar position the spacer would reserve the wrong place, and
-`island:false` is the remedy. The spacer reports whether its centre sits
+pill. For a different layout, configure the centre anchor or move flanking
+modules so they do not overlap the screen-centred notch. The spacer reports whether its centre sits
 within 2 px of the bar's middle (`CatchZone.offCentre`, through
 `noteBarPlacement`); the Service's `islandOffCentre` is true while any screen's
 island is away from it, and the welcome then explains how to make it the
 centre anchor. On a bottom/side bar or a vertical layout the
-widget keeps today's inline title-and-playback controls unchanged, because
-there is no top-edge notch to reserve room for there. While the pill is
+widget draws nothing and reserves no space; the island still occupies the
+screen top. While the pill is
 hovered or expanded, the spacer calls the host's
 `setCenterHoverRevealSuppressed` so the centre-section indicator peek does not
 compete with the island; it writes `false` again only on its own transitions
 (hover/expansion ending, or widget destruction), matching the contract the
 first-party clock and weather panels use for the same shared flag.
 
-The bar delegates hover help to the host's native tooltip popup because an
-in-window tooltip would be clipped by the bar's shallow window. BarWidget owns
-bounded tooltip text and refreshes it when metadata or control status changes
-during a stationary hover. Panel help uses
-[IslandToolTip.qml](../components/IslandToolTip.qml) to wrap text within its window.
+Panel help uses [IslandToolTip.qml](../components/IslandToolTip.qml) to wrap text
+within its window. Settings expose reduced motion, status-bar visibility,
+contrast and opt-in remote artwork through the Service configuration contract.
 
-The legacy detail surface gives metadata, playback and utility controls distinct
-space. [IslandContent.qml](../components/IslandContent.qml) owns their hierarchy
-and the separate volume row at narrow widths; Panel owns the matching window
-height. This preserves control targets instead of squeezing them together.
-The reserved error area keeps recovery instructions readable without replacing
-artist metadata or moving the footer when a command fails. Geometry and larger
-font examples are covered by the [state tests](https://github.com/bavanchun/nookisle/blob/v1.0.3/tests/qml/tst-island-state.qml).
-
-The legacy panel's tinted surface and hairline work without backdrop blur, and
-the island is solid black and needs none. The plugin never changes compositor
-blur by itself; only the installer's opt-in
-[bindings block](install.md#one-on-screen-display-for-media-keys) turns on
-global blur and adds a blur rule for the `nookisle` layer. Production colors follow the
-shell theme; Qt's light/dark scheme is only a standalone fallback. High contrast
-uses opaque surfaces. Settings also expose reduced
-motion, status-bar visibility, and opt-in remote artwork through the Service
-configuration contract.
-
-The window reserves no workspace strip. The legacy panel requests keyboard
-focus on demand while expanded. The island takes the keyboard only while it is
+The window reserves no workspace strip. The island takes the keyboard only while it is
 summoned (explicitly opened), and then exclusively, until Escape, a host
-toggle, a collapse or anything that hides it (a lock, a screen change,
-`island:false`) releases it; a hover-opened island never takes the keyboard
+toggle, a collapse or anything that hides it (a lock or a screen change) releases it; a hover-opened island never takes the keyboard
 (`IslandKeys.keyboardFocus`). When the settings or welcome window opens while
 the island is summoned (the header gear, or a verb), the island stays open but
 lends that window the keyboard, and takes it back when the window closes. A
@@ -96,18 +61,15 @@ window that was already open does not hold the keyboard against a summon, so
 keys never go to it on another workspace: every summon takes the keyboard
 back. Pressing the header gear while summoned lends the keyboard to the
 settings window even when it was already open. A summon is refused while the panel is not
-allowed, so none can wait behind a lock and take the keyboard on unlock. Its input region follows the
-shell's corner radius. Escape closes the source/settings view,
-then closes details. Details remain closed until explicitly opened again.
+allowed, so none can wait behind a lock and take the keyboard on unlock. Its input region follows the notch shape. Escape closes the source view,
+then leaves Lyrics for Home, then collapses the island.
 
-With `island` on, [Panel.qml](../Panel.qml) hosts
-[IslandSurface.qml](../components/IslandSurface.qml) instead of the legacy
-card, in the same fixed-size Overlay window anchored to the top edge only; the
-compositor centres it on the output because the bar widget spacer reserves
+[Panel.qml](../Panel.qml) hosts
+[IslandSurface.qml](../components/IslandSurface.qml) in the same fixed-size Overlay window anchored to the top edge only; the
+compositor centres it on the output; the top-bar spacer reserves
 the matching centre width (see "Geometry and appearance" above and
-[architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints)). The window
-is never shown while `hostBar.position` is not `top` or the bar is hidden,
-mirroring the bar widget's own island-mode gate. The host's open state
+[architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints)). The island remains available independently of the host bar's position or
+visibility. The host's open state
 (`isPluginOpen`, which `shell.qml` reads as `loader.item.opened`) mirrors the
 island's `expanded` property for both a hover-driven and a keyboard-summoned
 expansion: a host `toggle` on a hover-open island therefore collapses it, and
@@ -116,41 +78,24 @@ a second `toggle` reopens it explicitly with keyboard focus. A keyboard summon (
 `IslandSurface.collapse()`. The island follows `Hyprland.focusedMonitor`,
 but only while collapsed: a focus or output change while expanded is deferred
 until the next collapse, so the surface never jumps away from underneath the
-pointer. The Overlay window stays hidden over a fullscreen workspace unless
-the island was opened explicitly, matching the host bar's own
-fullscreen policy. The window is
+pointer. The Overlay window follows `fullscreenBehavior`;
+an explicit summon overrides it. The window is
 always mapped at its final fixed size; only the in-window `IslandSurface`
-card geometry morphs, so switching between the legacy card and the island
-surface, and the pill-to-card expansion itself, never resizes the layer
-window or changes its input region per frame.
+card geometry morphs. Pill-to-card expansion never resizes the layer window
+or changes its input region per frame.
 
 ## Controls and state
 
-The legacy panel's [content component](../components/IslandContent.qml) consumes only the
-Service facade. Compact mode shows artwork, title, source, and play/pause.
-Expanded mode adds artists, source scope, capability-aware previous/next,
-volume where supported, progress, source selection, and settings.
-[SourcePicker.qml](../components/SourcePicker.qml) owns the bounded source list
-and Tab/Backtab or Down/Up navigation, keeping the focused source in view. It
-opens as an overlay below the header rather than replacing the player, so the
-source being switched away from stays visible; below the narrow threshold it
-covers the whole stage. The covered stage stays visible but becomes `enabled:
-false`, and that is what cancels captured intent on the controls underneath —
-`IntentSlider` and `IslandButton` each cancel on `onEnabledChanged`, and
-`commitGesture` refuses while disabled, because opening the overlay flips two
-independent bindings whose evaluation order Qt does not guarantee.
-
-A "Show player" control raises the source's window through the `Raise` action.
-It is gated on `capabilities.CanRaise` and disabled with a stated reason when the
-source does not advertise it. A successful reply does not prove the window came
-forward; the plugin cannot observe compositor activation and claims nothing.
-Returning from sources or [settings](../components/IslandSettings.qml) restores
-focus to the opener so keyboard navigation retains its place. Document-targeted
-sources show both the verified platform and host; generic browser sources
-remain labeled as browser controls. Pin/Auto only changes selection. A pin
-lasts for the session; the remembered player (`preferredSource`, chosen in
-the welcome) is saved and steers Auto whenever that app is present, so a
-restart never leaves a pin to a player that is gone.
+[HomeView.qml](../components/HomeView.qml) and its
+[PlayerPanel.qml](../components/PlayerPanel.qml) consume the Service facade.
+Home shows artwork, title, artist, capability-aware playback, volume, progress
+and source selection. [SourcePicker.qml](../components/SourcePicker.qml) owns
+the bounded source list and keyboard navigation, keeping the focused source in
+view. It opens over Home and restores focus to its opener when closed.
+Settings opens a separate [SettingsWindow.qml](../components/SettingsWindow.qml).
+Pin/Auto only changes selection. A pin lasts for the session; the remembered
+player (`preferredSource`, chosen in the welcome) is saved and steers Auto
+whenever that app is present.
 
 Buttons capture intent at press, and sliders at gesture start. Sliders preview
 locally and submit once on release, including keyboard arrow gestures. Endpoint
@@ -159,14 +104,15 @@ unsent slider intent. [IntentSlider.qml](../components/IntentSlider.qml) owns
 this cancellation boundary: leaving a control must not submit an unfinished
 adjustment later. No control looks up a replacement endpoint when releasing a gesture.
 The Service independently validates connection, admission epoch, and selection.
-The bar registers click targets with the host's reorder layer. A passive pointer
-observer captures the original play-button press before a forwarded click;
-dragging the widget does not dispatch playback.
 Pending indicators reflect actual outstanding commands. Failure text never
 optimistically changes playback or retries a toggle.
 [IslandButton.qml](../components/IslandButton.qml) owns focus, press, disabled
 and pending feedback; its primary focus outline remains distinct from the fill,
 and pending controls do not suggest that another press sends another command.
+A `tonal` button is the quiet action for an empty state ("Sources" on Home,
+"Add calendar" in the calendar): a pill washed with the ink at 0.14, 0.20 when
+hovered and 0.24 when pressed. The filled primary style stays for the one
+action that fixes an error (Retry, Try again).
 
 Empty, unavailable pin, helper failure, and unsupported controls have explicit
 states. A disconnected helper removes playable metadata and offers Retry;
@@ -202,7 +148,7 @@ Locking the screen cancels it only when the plugin can see the lock provider.
 Current Omarchy hosts hide that provider from third-party plugins; the timer
 then stays available and keeps running across a lock, and the settings row says
 so. This is deliberate, not a bug to fix: see
-[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints).
+[host and session constraints](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints).
 
 Settings scroll when their content outgrows the card, with the scroll bar always
 drawn while there is more below. Tab focus scrolls the focused row into view.
@@ -237,7 +183,7 @@ Hide/reduced motion stops the fade immediately. It does not blur the desktop.
 ## Island interaction
 
 [IslandSurface.qml](../components/IslandSurface.qml) is the pure-QtQuick notch
-component that `Panel.qml` hosts in island mode. It
+component that `Panel.qml` hosts. It
 is a fixed-size `Item` that never imports Quickshell, so `qmltestrunner` loads
 and drives it offscreen; an accidental Quickshell import would fail that load
 outright.
@@ -294,6 +240,13 @@ side of the idle body. Only a screen with a camera cutout needs that body
 empty, so it stays empty only with `hardwareNotch` on (off by default).
 Otherwise the live notch shows the track title in the body's centre, between
 the cover and the bars (8px from each), in the caption size and centred.
+A track change (the endpoint's `trackToken`; a position, volume or art update
+does not count) hands the title off: the old one lifts out 4px and fades over
+`closedFadeOut` (90ms), the text swaps, and the new one settles in from 4px
+below over `closedFadeIn` (130ms). The swap is at once under reduced motion,
+with the window hidden, and while the wings' own content fade runs; a rapid
+second skip restarts from the current opacity, and metadata that arrives in
+parts without a token change lands without a second animation.
 After a track change, while playing, a title too long to fit scrolls through
 exactly one [Marquee](../components/Marquee.qml) pass (the 3s pause, then
 the scroll) and then rests elided, so the closed notch never loops a
@@ -343,8 +296,13 @@ tray, 16px, full ink when selected and secondary ink otherwise); Shelf adds its
 item count as a small badge once the shelf holds something, and never shows a
 zero. A 26px capsule, a 14% wash of the ink, slides under the selected tab by
 animating its x and width over 350ms (`tabDuration`, `OutCubic`; none under
-reduced motion). Each tab's accessible name is its word, with the count for
-Shelf ("Shelf, 2 items"). The
+reduced motion). The incoming view eases in alongside it: over 220ms
+(`viewEnterDuration`, `OutCubic`) it fades from 0 and slides 10px in from the
+side its tab lies on (6px up from below for Lyrics and Timers), while the
+outgoing view is gone at once, so two views never show together. Only a switch
+on the open, settled island enters; opening, collapsing, Escape to Home and
+reduced motion show no entrance. Each tab's accessible name is its word, with
+the count for Shelf ("Shelf, 2 items"). The
 tabs show while `alwaysShowTabs` is on (the default) or the shelf holds
 files. Turning on Remember last tab also turns on Always show tabs, so a
 remembered empty Shelf remains reachable. The centre is a span exactly as wide as the closed notch's
@@ -444,7 +402,9 @@ The player, after boring.notch's:
   choosing a source) returns focus to the control that opened it, or to the
   player's controls if that control is gone.
 - **Title and artist.** The title in bold ink, the artist in the secondary
-  ink; neither takes the artwork colour. Both scroll when they
+  ink; neither takes the artwork colour. A track change hands both off
+  together on one wrapper, with the closed notch's timing (out 90ms, swap,
+  in 130ms, 4px of lift), and at once under reduced motion. Both scroll when they
   do not fit ([Marquee.qml](../components/Marquee.qml)): two copies 20px apart
   move left at 30px/s after a 3s pause, only while visible and overflowing,
   and never under reduced motion. A scrolling line fades out over 12px at
@@ -453,19 +413,28 @@ The player, after boring.notch's:
   When the helper trims overlong metadata, Home shows a focusable marker with
   an explanation beside the title.
 - **Lyric or status line.** With lyrics on, the line keeps its row for every
-  track, so the block never moves as lyrics arrive: the current synced line
-  (dropping in from above as it changes, clipped to its row), or, dimmed, the
-  lookup's state ("Loading lyrics…", "Unsynced lyrics", "Instrumental" or "No
-  lyrics found"). It scrolls like the title when it does not fit and fades out
-  on pause; a tap while playing opens the Lyrics
+  track, so the block never moves as lyrics arrive. A synced line is drawn in
+  full ink, medium weight, dropping in from above as it changes (clipped to its
+  row); the time before the first line and a break show a note in the tint.
+  Anything else is a state message in the dimmed secondary colour that appears
+  in place: "Looking up lyrics…" (only after one second of lookup, so a quick
+  answer never flashes it; the row is blank until then), "No synced lyrics",
+  "Unsynced lyrics only", a tinted note then "Instrumental", "Lyrics
+  unavailable" for any error (the Lyrics view carries Try again), "Lyrics need
+  the track length" and "Nothing to look up". Home and the Lyrics view read one
+  state name, `LyricsSource.displayState`, so their wording cannot drift apart.
+  Hovering the line shows the view's detail line. It scrolls like the title when
+  it does not fit and fades out on pause; a tap while playing opens the Lyrics
   view. Arabic and Persian lines use Vazirmatn when it is installed. An
   action's error, or the connection state while no source shows, takes the
   line's place.
 - **Scrubber.** The position slider across the column, with the elapsed and
   total times under its ends in tabular figures. Without a source there is no
-  scrubber and no button row. Its track is 5px, springing (0.35, 0.7) to 9px while dragged, and its fill
-  follows `sliderColor`: white (the default), the artwork colour (`albumArt`),
-  or the theme accent.
+  scrubber and no button row. Its track is 5px, springing (0.35, 0.7) to 7px under the pointer
+  (`scrubHeightHover`) and 9px while dragged, the elapsed time turning to full
+  ink while it is dragged, and its fill
+  follows `sliderColor`: the artwork colour (`albumArt`, the default for a new
+  install), white, or the theme accent. The elapsed and total times stay neutral.
 - **Buttons** ([MusicToolbar.qml](../components/MusicToolbar.qml)). The
   `musicControlSlots` setting lists up to five of `shuffle`, `previous`,
   `playPause`, `next`, `repeat`, `volume`, `favorite`, `back15`, `forward15`
@@ -529,7 +498,7 @@ open while a menu, picker or share action needs it: while `busyCount` is
 above 0, the leave grace, a push or Shift-wheel close, a summon auto-close,
 the player's own close requests and the host's toggle all leave it open.
 Escape still closes it. The host's safety resets (the lock screen or a panel
-disallow, leaving island mode, a screen change and fullscreen) go through
+disallow, a screen change and fullscreen) go through
 `resetForHost()`, which closes the island and drops every hold, so it never
 shows over a lock screen or carries a busy state to another mode or screen.
 Each hold lapses on its own after 2s, and when
@@ -544,13 +513,15 @@ the island after the `summonAutoClose` setting (3000ms by default, 0–10000,
 or focus moves into a view first. The IPC verb is unchanged; the payload key
 is additive (see [install](install.md#summon-with-auto-close)).
 A summon focuses the surface root (`IslandSurface.focusKeys()`), where the
-shortcut keys live (see [gestures and keys](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md#gestures-and-keys)), and Return steps into the
+shortcut keys live (see [gestures and keys](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md#gestures-and-keys)), and Return steps into the
 view (`IslandSurface.focusContent()`). Keys bubble from the focused control up
 through the view to the root, whose Escape closes Home's settings or source
 overlay first, then leaves Lyrics for Home, then collapses the island.
 A collapse gives that focus back (`IslandSurface.releaseKeys()`), so every
 summon starts on the root, where Tab and Shift+Tab switch views, and a hover
-open never wears a focus ring left from an earlier summon.
+open never wears a focus ring left from an earlier summon. While the root holds
+focus, a ring in the accent colour fits the tabs (or the back chevron in
+Lyrics), sized from `NotchHeader.tabsRect`.
 
 **Shape.** The island is a solid black notch
 ([NotchShape.qml](../components/NotchShape.qml)), after boring.notch's
@@ -607,8 +578,7 @@ ink with a black label, `tintText` is the ink and the card takes no wash, so
 the artwork colour reaches only graphics (the spectrum, the sliders, the
 hairline and the glow). For those, `tint` starts from the artwork colour at a
 vibrance floor (`Tint.vibrant`: HSL saturation at least 0.45 and lightness
-0.55–0.7, a near-grey kept as it is) and is guarded against black. The legacy
-panel (`island:false`) keeps the host's own colours and tinted chrome.
+0.55–0.7, a near-grey kept as it is) and is guarded against black.
 
 **Morph.** `expansion` follows boring.notch's springs through
 [Motion.js](../qml/Motion.js): open is `spring(response 0.42, damping 0.8)`,
@@ -619,8 +589,7 @@ close is `spring(0.45, 1.0)`, critically damped, over the fixed
 spring, so the motion is exact and finite and the scene graph goes quiet when
 it ends. A reversal mid-flight starts the other spring from the current
 `expansion`, so the notch never jumps. Both settle at once under reduced
-motion. The legacy panel keeps its own `expandDuration`/`collapseDuration`
-(220/180ms), so `island:false` behaves as before.
+motion.
 
 Only the in-window notch (`islandCard`) morphs; the hosting window is mapped
 once at its fixed size, `notchWindowWidth` × `notchWindowHeight`: the open
@@ -649,7 +618,7 @@ and never animate, so the mask does not resize per frame.
 Home and the Lyrics view both fit the 190px open body; the Lyrics state
 message lays out in one row (icon, text, Try again) on a stage that short.
 
-**Artwork colour.** In island mode with `tint` on and `highContrast` off,
+**Artwork colour.** With `tint` on and `highContrast` off,
 `Panel.qml` runs Quickshell's `ColorQuantizer` (depth 3, so 8 colours, at
 48px) once per artwork change on the helper's sanitized artwork file, through
 the same `SourceState.artworkUrl` rule the artwork itself is drawn with (the
@@ -693,8 +662,7 @@ live Omarchy palette, because the theme can change at runtime:
   offsets 3/6/9px at alpha 0.20/0.10/0.05), with no blur or shader. The Home
   player uses the blurred copy instead when GPU effects are on.
 
-With no artwork, a greyscale cover, `tint:false`, `highContrast:true` or the
-legacy panel, `artColor` is transparent. Then `tint` and `tintText` are
+With no artwork, a greyscale cover, `tint:false` or `highContrast:true`, `artColor` is transparent. Then `tint` and `tintText` are
 `accent`, the primary pair is `accent` on `accentLabel` (the theme's
 `onAccent`), `cardSurface` is `surface` and there is no glow, which is
 exactly the untinted look.
@@ -750,8 +718,7 @@ omarchy-shell nookisle onboarding   # the welcome steps again
 The island's header gear opens the window directly. Asked again while the
 window is open (it may be on another workspace), the Service unmaps it and
 maps it again on the current one, on the section asked for or the one it
-showed. The legacy panel keeps
-its inline settings view and its "All settings…" button.
+showed.
 
 **Idle face.** [IdleFace.qml](../components/IdleFace.qml) draws boring.notch's
 face (eyes, nose and smile, 30×20, scaled to its size) and blinks every 3 to
@@ -805,9 +772,9 @@ can show them, and each bar's centre peek is suppressed by the visible island
 the pointer is on (else an open one). The settings window offers `preferredDisplay` as
 Automatic plus the connected screens, and keeps a stored screen that is not
 connected, marked "(not connected)". Every bar's spacer stays as it is. See
-[architecture](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#host-and-session-constraints) for the windows
+[architecture](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#host-and-session-constraints) for the windows
 behind `all`.
 
 ## Gestures, keys and verification
 
-See the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md) for media-key readout ownership, pointer and keyboard gestures, and the verification suites.
+See the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md) for media-key readout ownership, pointer and keyboard gestures, and the verification suites.

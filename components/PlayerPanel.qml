@@ -31,9 +31,88 @@ Item {
     readonly property bool playing: !!endpoint && endpoint.status === "Playing"
     readonly property bool unavailable: !!coordinator && coordinator.pinUnavailable === true
     readonly property bool metadataTruncated: !!endpoint && endpoint.presentationTruncated === true
-    readonly property string title: endpoint ? String(presentation.title || presentation.hostApp || Strings.player)
-        : unavailable ? String(coordinator.selectedLabel || "Selected source") : !controlsAllowed ? "Connect Nookisle" : "No music source yet"
-    readonly property string artist: Array.isArray(presentation.artists) ? presentation.artists.join(", ") : ""
+    // The title, artist and track key read straight from the coordinator, so
+    // the handoff below agrees with them whichever binding is told first.
+    function liveEndpoint() {
+        return !!coordinator && coordinator.panelAllowed === true && coordinator.uiAllowed === true
+            ? coordinator.selectedEndpoint : null;
+    }
+    function livePresentation() {
+        var live = liveEndpoint();
+        return live && live.presentation ? live.presentation : ({});
+    }
+    function liveTitle() {
+        var shown = livePresentation();
+        if (liveEndpoint())
+            return String(shown.title || shown.hostApp || Strings.player);
+        if (coordinator && coordinator.pinUnavailable === true)
+            return String(coordinator.selectedLabel || "Selected source");
+        return !!coordinator && coordinator.panelAllowed === true && coordinator.uiAllowed === true
+            ? "No music source yet" : "Connect Nookisle";
+    }
+    function liveArtist() {
+        var shown = livePresentation();
+        return Array.isArray(shown.artists) ? shown.artists.join(", ") : "";
+    }
+    function liveKey() {
+        var live = liveEndpoint();
+        return live && live.trackToken !== undefined ? JSON.stringify(live.trackToken) : "";
+    }
+    readonly property string title: liveTitle()
+    readonly property string artist: liveArtist()
+    // What the title and artist show: never bound. A new track hands both off
+    // together (out, swap, in); the same track's metadata arriving in
+    // parts, a hidden window or reduced motion swap at once.
+    property string shownTitle: ""
+    property string shownArtist: ""
+    property string seenKey: ""
+    property real metaFade: 1
+    property real metaLift: 0
+    readonly property bool handoffPossible: !tokens.reducedMotion && !glanceShown && visible
+        && !!Window.window && Window.window.visible
+    function syncMetadata() {
+        var key = liveKey();
+        var moved = key !== seenKey;
+        var hadTrack = seenKey !== "";
+        seenKey = key;
+        if (moved && hadTrack && key !== "" && handoffPossible)
+            metaHandoff.restart();
+        else if (moved || !metaHandoff.running)
+            settleMetadata();
+    }
+    function settleMetadata() {
+        metaHandoff.stop();
+        metaFade = 1;
+        metaLift = 0;
+        shownTitle = liveTitle();
+        shownArtist = liveArtist();
+    }
+    function swapMetadata() {
+        shownTitle = liveTitle();
+        shownArtist = liveArtist();
+        metaLift = tokens.titleHandoffShift;
+    }
+    onHandoffPossibleChanged: if (!handoffPossible && metaHandoff.running) settleMetadata()
+    onEndpointChanged: syncMetadata()
+    onTitleChanged: syncMetadata()
+    onArtistChanged: syncMetadata()
+    Component.onCompleted: {
+        seenKey = liveKey();
+        shownTitle = liveTitle();
+        shownArtist = liveArtist();
+    }
+    SequentialAnimation {
+        id: metaHandoff
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "metaFade"; to: 0; duration: root.tokens.closedFadeOut; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "metaLift"; to: -root.tokens.titleHandoffShift; duration: root.tokens.closedFadeOut; easing.type: Easing.InCubic }
+        }
+        ScriptAction { script: root.swapMetadata() }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "metaFade"; to: 1; duration: root.tokens.closedFadeIn; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "metaLift"; to: 0; duration: root.tokens.closedFadeIn; easing.type: Easing.OutCubic }
+        }
+    }
     readonly property string pending: coordinator ? String(coordinator.pendingAction || "") : ""
     readonly property string artworkPath: endpoint ? String(endpoint.artworkPath || "") : ""
     readonly property real lengthSeconds: endpoint ? Math.max(0, Number(endpoint.lengthSeconds) || 0) : 0
@@ -57,32 +136,71 @@ Item {
         return Strings.statusText(coordinator ? coordinator.statusText : "connecting");
     }
     // The lyric line: with lyrics on, it holds its place for every track,
-    // showing the current synced line, or the lookup's state while there is
-    // none, so the block under it never jumps as lyrics arrive.
+    // showing the current synced line, or what the lookup came to while
+    // there is none, so the block under it never jumps as lyrics arrive.
+    // The state comes from LyricsSource.displayState, the name the Lyrics
+    // view reads as well, and every state has its own words here.
     readonly property bool lyricsOn: !!coordinator && coordinator.lyrics === true && !!lyricsSource
         && lyricsSource.lyricsEnabled === true
-    readonly property string lyricsState: lyricsOn ? String(lyricsSource.lyricsState || "idle") : "off"
+    readonly property string lyricsState: lyricsOn ? String(lyricsSource.displayState || "off") : "off"
+    readonly property var lyricStateCopy: ({
+        "off": "",
+        "ready": "",
+        "loading": "Looking up lyrics…",
+        "no-meta": "Nothing to look up",
+        "none": "No synced lyrics",
+        "plain": "Unsynced lyrics only",
+        "instrumental": "Instrumental",
+        "error": "Lyrics unavailable",
+        "no-length": "Lyrics need the track length"
+    })
+    // The Lyrics view's detail line for each state, for the hover tooltip.
+    readonly property var lyricStateDetail: ({
+        "loading": "Asking LRCLIB for this track",
+        "no-meta": "This source does not report a title and artist",
+        "none": "LRCLIB has no timed lyrics for it",
+        "plain": "LRCLIB has the words for this track, but not their timing",
+        "instrumental": "This track has no lyrics",
+        "no-length": "This source does not report the track length, which lyrics need"
+    })
+    readonly property string lyricErrorCode: lyricsOn ? String(lyricsSource.errorCode || "") : ""
+    readonly property string lyricDetail: lyricsState !== "error" ? String(lyricStateDetail[lyricsState] || "")
+        : lyricErrorCode === "timeout" ? "LRCLIB did not answer in time"
+        : lyricErrorCode === "too-large" ? "The answer was too large to read"
+        : lyricErrorCode === "busy" ? "LRCLIB is busy right now"
+        : lyricErrorCode === "rate-limited" ? "LRCLIB is limiting requests, try again shortly"
+        : "Check the connection and try again"
     readonly property var lyricLines: lyricsState === "ready" && Array.isArray(lyricsSource.lines)
         ? lyricsSource.lines : []
     readonly property bool lyricShown: lyricsOn && !!endpoint && statusText === ""
     readonly property bool lyricSynced: lyricShown && lyricLines.length > 0
     readonly property int lyricIndex: lyricSynced ? lyricsSource.currentIndex : -1
-    readonly property string lyricText: {
-        if (lyricIndex >= 0 && lyricIndex < lyricLines.length)
-            return String(lyricLines[lyricIndex].text);
-        if (lyricSynced)
-            return "♪";
-        switch (lyricsState) {
-        case "idle":
-        case "loading":
-            return "Loading lyrics…";
-        case "plain":
-            return "Unsynced lyrics";
-        case "instrumental":
-            return "Instrumental";
-        }
-        return "No lyrics found";
+    // A lyric line, or the note before the first line and in a break; the
+    // tint marks the note. Anything else is a state message.
+    readonly property bool lyricIsLine: lyricIndex >= 0 && lyricIndex < lyricLines.length
+    readonly property bool lyricIsNote: lyricsState === "ready" && !lyricIsLine
+    // The words for the state, always in full: the accessible name and the
+    // tooltip use them even while the row is still blank.
+    readonly property string lyricStateText: lyricIsLine ? String(lyricLines[lyricIndex].text)
+        : lyricIsNote ? "♪" : String(lyricStateCopy[lyricsState] || "")
+    // A lookup says nothing for its first lyricRevealDelay: a cached answer
+    // or a quick one never shows status text that would only flash.
+    property bool lyricRevealed: false
+    readonly property bool lyricPending: lyricsState === "loading"
+    readonly property string lyricTrackKey: lyricsOn ? String(lyricsSource.trackKey || "") : ""
+    onLyricPendingChanged: lyricRevealed = false
+    onLyricTrackKeyChanged: if (lyricPending) {
+        lyricRevealed = false;
+        lyricReveal.restart();
     }
+    Timer {
+        id: lyricReveal
+        interval: root.tokens.lyricRevealDelay
+        running: root.lyricPending
+        repeat: false
+        onTriggered: root.lyricRevealed = true
+    }
+    readonly property string lyricText: lyricPending && !lyricRevealed ? "" : lyricStateText
     // Arabic and Persian lines take Vazirmatn when it is installed.
     readonly property bool vazirmatn: Qt.fontFamilies().indexOf("Vazirmatn") >= 0
     function lyricFont(text) {
@@ -370,47 +488,55 @@ Item {
             calendarItems: root.calendarItems
             calendarOptions: root.calendarOptions
         }
-        Row {
+        // The title row and the artist, handed off together on a track change.
+        Column {
+            objectName: "trackMetadata"
             width: parent.width
-            visible: !root.glanceShown
-            spacing: root.tokens.small
-            Marquee {
-                objectName: "trackTitle"
-                width: parent.width - (root.metadataTruncated ? truncationMarker.width + parent.spacing : 0)
-                tokens: root.tokens
-                text: root.title
-                pixelSize: root.tokens.titleSize + 2
-                weight: Font.Bold
-                color: root.tokens.text
-            }
-            Text {
-                id: truncationMarker
-                objectName: "homeTruncationMarker"
-                visible: root.metadataTruncated
-                text: "…"
-                color: root.tokens.secondary
-                font.family: root.tokens.fontFamily
-                renderType: root.tokens.textRenderType
-                font.pixelSize: root.tokens.bodySize
-                activeFocusOnTab: true
-                Accessible.name: "Some source details were trimmed"
-                IslandToolTip {
+            spacing: 0
+            opacity: root.metaFade
+            transform: Translate { y: root.metaLift }
+            Row {
+                width: parent.width
+                visible: !root.glanceShown
+                spacing: root.tokens.small
+                Marquee {
+                    objectName: "trackTitle"
+                    width: parent.width - (root.metadataTruncated ? truncationMarker.width + parent.spacing : 0)
                     tokens: root.tokens
-                    visible: truncationHover.hovered || truncationMarker.activeFocus
-                    delay: truncationHover.hovered ? 600 : 0
-                    text: "This source sent more text than fits; some details were trimmed."
+                    text: root.shownTitle
+                    pixelSize: root.tokens.titleSize + 2
+                    weight: Font.Bold
+                    color: root.tokens.text
                 }
-                HoverHandler { id: truncationHover }
+                Text {
+                    id: truncationMarker
+                    objectName: "homeTruncationMarker"
+                    visible: root.metadataTruncated
+                    text: "…"
+                    color: root.tokens.secondary
+                    font.family: root.tokens.fontFamily
+                    renderType: root.tokens.textRenderType
+                    font.pixelSize: root.tokens.bodySize
+                    activeFocusOnTab: true
+                    Accessible.name: "Some source details were trimmed"
+                    IslandToolTip {
+                        tokens: root.tokens
+                        visible: truncationHover.hovered || truncationMarker.activeFocus
+                        delay: truncationHover.hovered ? 600 : 0
+                        text: "This source sent more text than fits; some details were trimmed."
+                    }
+                    HoverHandler { id: truncationHover }
+                }
             }
-        }
-        Marquee {
-            objectName: "trackArtist"
-            width: parent.width
-            visible: root.artist !== ""
-            tokens: root.tokens
-            text: root.artist
-            weight: Font.Medium
-            color: root.tokens.secondary
+            Marquee {
+                objectName: "trackArtist"
+                width: parent.width
+                visible: root.artist !== ""
+                tokens: root.tokens
+                text: root.shownArtist
+                weight: Font.Medium
+                color: root.tokens.secondary
+            }
         }
         // One line under the artist: the lyric, or the status. Clipped, so
         // a new line dropping in never draws over the artist.
@@ -420,17 +546,36 @@ Item {
             height: root.tokens.bodySize + root.tokens.small * 2
             visible: root.lyricShown || root.statusText !== ""
             clip: true
+            // The note before "Instrumental", in the tint.
+            Text {
+                id: lyricGlyph
+                objectName: "lyricGlyph"
+                visible: root.lyricShown && root.lyricsState === "instrumental"
+                anchors.verticalCenter: parent.verticalCenter
+                text: "♪"
+                textFormat: Text.PlainText
+                color: root.tokens.tint
+                opacity: inlineLyric.opacity
+                font.family: root.tokens.fontFamily
+                renderType: root.tokens.textRenderType
+                font.pixelSize: root.tokens.bodySize
+                font.weight: Font.Medium
+                Accessible.ignored: true
+            }
             Marquee {
                 id: inlineLyric
                 objectName: "inlineLyric"
-                width: parent.width
+                x: lyricGlyph.visible ? lyricGlyph.width + root.tokens.small : 0
+                width: parent.width - x
                 visible: root.lyricShown
                 tokens: root.tokens
                 text: root.lyricText
                 fontFamily: root.lyricFont(root.lyricText)
-                color: root.tokens.secondary
+                color: root.lyricIsLine ? root.tokens.text : root.lyricIsNote ? root.tokens.tint : root.tokens.secondary
+                weight: root.lyricsState === "ready" ? Font.Medium : Font.Normal
                 // Each new line drops in from above and fades up; a state
-                // message ("Loading lyrics…") is dimmer than a line.
+                // message ("Looking up lyrics…") appears in place and is
+                // dimmer than a line.
                 property real enter: 1
                 y: -root.tokens.gap * (1 - enter)
                 opacity: enter * (root.playing ? (root.lyricSynced ? 1 : 0.7) : 0)
@@ -438,10 +583,14 @@ Item {
                     enabled: root.tokens.lyricLineDuration > 0
                     NumberAnimation { duration: root.tokens.lyricLineDuration }
                 }
-                onTextChanged: if (root.tokens.lyricLineDuration > 0) {
+                onTextChanged: {
                     lineIn.stop();
-                    enter = 0;
-                    lineIn.start();
+                    if (root.tokens.lyricLineDuration > 0 && root.lyricsState === "ready") {
+                        enter = 0;
+                        lineIn.start();
+                    } else {
+                        enter = 1;
+                    }
                 }
                 NumberAnimation {
                     id: lineIn
@@ -452,11 +601,23 @@ Item {
                     easing.type: Easing.OutCubic
                 }
                 Accessible.role: Accessible.Button
-                Accessible.name: "Lyrics: " + text
+                Accessible.name: "Lyrics: " + root.lyricStateText
                 // Hidden while paused, so it takes no tap then.
                 TapHandler {
                     enabled: root.playing
                     onTapped: root.lyricsRequested()
+                }
+                HoverHandler {
+                    id: lyricHover
+                    enabled: root.playing
+                }
+                IslandToolTip {
+                    objectName: "lyricToolTip"
+                    parent: inlineLyric
+                    tokens: root.tokens
+                    visible: lyricHover.hovered && root.lyricDetail !== ""
+                    delay: 600
+                    text: root.lyricDetail
                 }
             }
             Text {
@@ -481,6 +642,7 @@ Item {
                 id: sourceChoice
                 objectName: "homeSourceButton"
                 tokens: root.tokens
+                tonal: true
                 text: "Sources"
                 accessibleLabel: "Choose a source"
                 onActivated: root.sourcesRequested()
@@ -530,7 +692,7 @@ Item {
                     objectName: "elapsedTime"
                     text: root.timeText(progress.displayValue)
                     textFormat: Text.PlainText
-                    color: root.tokens.secondary
+                    color: progress.gesturing ? root.tokens.text : root.tokens.secondary
                     font.family: root.tokens.fontFamily
                     renderType: root.tokens.textRenderType
                     font.pixelSize: root.tokens.captionSize

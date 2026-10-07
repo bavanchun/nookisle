@@ -7,3 +7,9 @@ updates:
     target-branch: "main"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

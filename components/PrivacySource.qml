@@ -8,7 +8,7 @@ import "../qml/Privacy.js" as Privacy
 // PipeWire graph: node types and links need no tracking, so only the few
 // capture streams in use are tracked, for their application names. The
 // helper's camera holders cover apps that open a camera without PipeWire.
-// Panel.qml loads this only in island mode with privacy indicators on.
+// Panel.qml loads this only with privacy indicators on.
 Item {
     id: root
     // Service.cameraHolders: processes holding /dev/videoN open.

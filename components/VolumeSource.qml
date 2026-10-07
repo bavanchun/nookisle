@@ -8,7 +8,7 @@ import "../qml/VolumeSink.js" as VolumeSink
 
 // This file reads the output sink resolved through a DSP; MicSource reads only the default
 // input source's mute state.
-// Panel.qml loads this through a Loader, only in island mode with hud on, so
+// Panel.qml loads this through a Loader, only with hud on, so
 // the Service-side lifecycle harness (which instantiates Plugin.Service and
 // fails on any "Failed to load") never depends on the audio stack
 // (tests/source-contract.py's check_service_imports).

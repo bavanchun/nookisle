@@ -2,8 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 
-// The Lyrics view: the track on top, then the song's lines around the one
-// being sung, following the playback position. The current line is large
+// The Lyrics view: the song's lines around the one being sung, following
+// the playback position, with the track and the lyrics' source in a footer
+// under a progress hairline. The current line is large
 // and bright in the card's text colour; the line before it and the lines
 // after it are smaller and dimmed. When the song moves on, the lines glide
 // up one step while the next line grows into the current one: one finite
@@ -26,17 +27,11 @@ Item {
     readonly property real lengthSeconds: endpoint && endpoint.lengthSeconds > 0 ? endpoint.lengthSeconds : 0
     readonly property real progressFraction: lengthSeconds > 0 && coordinator
         ? Math.max(0, Math.min(1, Number(coordinator.positionSeconds) / lengthSeconds)) || 0 : 0
-    // What the view shows: the source's own state, plus the cases only the
-    // view can tell apart (lyrics off, nothing playing, nothing to look up).
+    // What the view shows: the source's display state, plus the one case
+    // only the view can tell apart (nothing playing).
     readonly property string stateName: {
-        if (!source || source.lyricsEnabled !== true)
-            return "off";
-        if (!endpoint)
-            return "empty";
-        var s = String(source.lyricsState || "idle");
-        if (s === "idle")
-            return source.meta ? "loading" : "no-meta";
-        return s;
+        var s = source ? String(source.displayState || "off") : "off";
+        return s !== "off" && !endpoint ? "empty" : s;
     }
     readonly property bool synced: stateName === "ready"
     readonly property var lines: synced && source.lines ? source.lines : []
@@ -65,10 +60,14 @@ Item {
     readonly property int currentSize: tokens.lyricCurrentSize + 4
     readonly property int upcomingSize: tokens.titleSize
     readonly property int lineSpacing: tokens.medium + 2
-    readonly property real earlierAlpha: 0.3
-    readonly property real previousAlpha: 0.55
-    readonly property real nextAlpha: 0.9
-    readonly property real laterAlpha: 0.5
+    // High contrast lifts every neighbour to at least 0.66, the least that
+    // keeps the secondary colour at 4.5:1 on the notch.
+    readonly property real alphaFloor: tokens.highContrast ? 0.66 : 0
+    readonly property color neighbourColor: tokens.highContrast ? tokens.text : tokens.secondary
+    readonly property real earlierAlpha: Math.max(0.3, alphaFloor)
+    readonly property real previousAlpha: Math.max(0.55, alphaFloor)
+    readonly property real nextAlpha: Math.max(0.9, alphaFloor)
+    readonly property real laterAlpha: Math.max(0.5, alphaFloor)
     readonly property real nextScale: upcomingSize / currentSize
     // The glide: 0 when a line change starts, 1 at rest. `glideShift` is
     // how far below its rest the line group starts: one full step when the
@@ -115,93 +114,16 @@ Item {
     Accessible.name: "Lyrics"
 
     Item {
-        id: header
-        objectName: "lyricsHeader"
-        x: root.tokens.inset
-        y: root.tokens.medium
-        width: root.width - root.tokens.inset * 2
-        height: root.tokens.rowHeight
-        visible: !!root.endpoint
-        ArtGlow {
-            tokens: root.tokens
-            target: headerArt
-            radius: headerArt.radius
-        }
-        Artwork {
-            id: headerArt
-            objectName: "lyricsArtwork"
-            anchors.verticalCenter: parent.verticalCenter
-            width: 40
-            height: width
-            radius: root.tokens.gap
-            tokens: root.tokens
-            artworkPath: root.endpoint
-                ? String(root.endpoint.artworkPath || "") : ""
-            border.width: 1
-            border.color: root.tokens.stroke
-        }
-        Column {
-            x: headerArt.width + root.tokens.medium
-            anchors.verticalCenter: headerArt.verticalCenter
-            width: parent.width - x
-            spacing: 2
-            Text {
-                objectName: "lyricsTitle"
-                width: parent.width
-                text: root.title
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.tokens.text
-                font.family: root.tokens.fontFamily
-                renderType: root.tokens.textRenderType
-                font.pixelSize: root.tokens.bodySize
-                font.weight: Font.Medium
-            }
-            Text {
-                objectName: "lyricsArtists"
-                visible: text !== ""
-                width: parent.width
-                text: root.artists
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.tokens.secondary
-                font.family: root.tokens.fontFamily
-                renderType: root.tokens.textRenderType
-                font.pixelSize: root.tokens.captionSize
-            }
-        }
-        // The song's progress under the header, in the artwork's colour.
-        Rectangle {
-            id: hairline
-            objectName: "lyricsHairline"
-            visible: root.lengthSeconds > 0
-            x: headerArt.width + root.tokens.medium
-            y: parent.height - height
-            width: parent.width - x
-            height: root.tokens.hairlineHeight
-            radius: height / 2
-            color: Qt.rgba(root.tokens.text.r, root.tokens.text.g, root.tokens.text.b, 0.16)
-            Accessible.ignored: true
-            Rectangle {
-                width: Math.round(hairline.width * root.progressFraction)
-                height: parent.height
-                radius: parent.radius
-                color: root.tokens.tint
-            }
-        }
-    }
-
-    Item {
         id: stage
         objectName: "lyricsStage"
         x: root.tokens.inset
-        y: header.visible ? header.y + header.height + root.tokens.gap : root.tokens.medium
+        y: root.tokens.small
         width: root.width - root.tokens.inset * 2
-        height: footer.y - y - root.tokens.small
+        height: hairline.y - root.tokens.small - y
         clip: true
         // Where the current line rests: a little above the middle, so the
         // lines to come have room below it.
-        readonly property real restY: Math.round(height * 0.38)
+        readonly property real restY: Math.round(height * 0.40)
 
         Item {
             id: lineGroup
@@ -214,12 +136,14 @@ Item {
                 objectName: "lyricsEarlierLine"
                 y: previousLine.y - root.tokens.gap - height
                 width: parent.width
-                visible: text !== "" && previousLine.visible
+                // Only when it rests wholly inside the stage, so no descenders
+                // peek out under the top fade.
+                visible: text !== "" && previousLine.visible && y >= 0
                 text: root.earlierText
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 maximumLineCount: 1
-                color: root.tokens.secondary
+                color: root.neighbourColor
                 opacity: root.earlierAlpha * (root.glideForward ? root.glide : 1)
                 font.family: root.tokens.fontFamily
                 renderType: root.tokens.textRenderType
@@ -235,7 +159,7 @@ Item {
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 maximumLineCount: 1
-                color: root.tokens.secondary
+                color: root.neighbourColor
                 // The old current line restyles as it becomes this one, so
                 // it fades in under the glide rather than jumping.
                 opacity: root.previousAlpha * (root.glideForward ? root.glide : 1)
@@ -282,7 +206,7 @@ Item {
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
-                color: text === root.note ? root.tokens.tint : root.tokens.secondary
+                color: text === root.note ? root.tokens.tint : root.neighbourColor
                 opacity: root.nextAlpha
                 font.family: root.tokens.fontFamily
                 renderType: root.tokens.textRenderType
@@ -298,7 +222,7 @@ Item {
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 maximumLineCount: 1
-                color: text === root.note ? root.tokens.tint : root.tokens.secondary
+                color: text === root.note ? root.tokens.tint : root.neighbourColor
                 opacity: root.laterAlpha * (root.glideForward ? root.glide : 1)
                 font.family: root.tokens.fontFamily
                 renderType: root.tokens.textRenderType
@@ -320,7 +244,7 @@ Item {
         Rectangle {
             y: parent.height - height
             width: parent.width
-            height: root.tokens.inset + root.tokens.gap
+            height: root.tokens.medium
             visible: root.synced
             gradient: Gradient {
                 GradientStop { position: 0; color: Qt.rgba(root.tokens.notchColor.r, root.tokens.notchColor.g, root.tokens.notchColor.b, 0) }
@@ -357,6 +281,8 @@ Item {
             readonly property string errorDetail: root.source && root.source.errorCode === "timeout"
                 ? "LRCLIB did not answer in time"
                 : root.source && root.source.errorCode === "too-large" ? "The answer was too large to read"
+                : root.source && root.source.errorCode === "busy" ? "LRCLIB is busy right now"
+                : root.source && root.source.errorCode === "rate-limited" ? "LRCLIB is limiting requests, try again shortly"
                 : "Check the connection and try again"
             IslandIcon {
                 objectName: "lyricsMessageIcon"
@@ -417,19 +343,96 @@ Item {
         }
     }
 
-    // Attribution, and a standing reminder of where the lines come from.
-    Text {
+    // The song's progress, in the artwork's colour, above the footer.
+    Rectangle {
+        id: hairline
+        objectName: "lyricsHairline"
+        visible: root.lengthSeconds > 0
+        x: root.tokens.inset
+        y: footer.y - root.tokens.small - height
+        width: root.width - root.tokens.inset * 2
+        height: root.tokens.hairlineHeight
+        radius: height / 2
+        color: Qt.rgba(root.tokens.text.r, root.tokens.text.g, root.tokens.text.b, 0.16)
+        Accessible.ignored: true
+        Rectangle {
+            width: Math.round(hairline.width * root.progressFraction)
+            height: parent.height
+            radius: parent.radius
+            color: root.tokens.tint
+        }
+    }
+
+    // The track on the left, and a standing reminder of where the lines come
+    // from on the right. With nothing playing only the attribution shows.
+    Item {
         id: footer
-        objectName: "lyricsAttribution"
+        objectName: "lyricsFooter"
         x: root.tokens.inset
         y: root.height - height - root.tokens.medium
         width: root.width - root.tokens.inset * 2
-        text: "Lyrics from LRCLIB"
-        textFormat: Text.PlainText
-        elide: Text.ElideRight
-        color: root.tokens.secondary
-        font.family: root.tokens.fontFamily
-        renderType: root.tokens.textRenderType
-        font.pixelSize: root.tokens.captionSize
+        height: root.tokens.wingArt
+        Item {
+            id: track
+            objectName: "lyricsTrack"
+            readonly property real available: attribution.x - root.tokens.gap - x
+            visible: !!root.endpoint
+            width: Math.max(0, available)
+            height: parent.height
+            Artwork {
+                id: footerArt
+                objectName: "lyricsArtwork"
+                width: root.tokens.wingArt
+                height: width
+                radius: root.tokens.wingArtRadius
+                tokens: root.tokens
+                artworkPath: root.endpoint
+                    ? String(root.endpoint.artworkPath || "") : ""
+                border.width: 1
+                border.color: root.tokens.stroke
+            }
+            Text {
+                id: titleText
+                objectName: "lyricsTitle"
+                x: footerArt.width + root.tokens.gap
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, Math.max(0, track.width - x))
+                text: root.title
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                color: root.tokens.secondary
+                font.family: root.tokens.fontFamily
+                renderType: root.tokens.textRenderType
+                font.pixelSize: root.tokens.captionSize
+                font.weight: Font.Medium
+            }
+            Text {
+                objectName: "lyricsArtists"
+                x: titleText.x + titleText.width
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, track.width - x)
+                visible: root.artists !== "" && width > 0
+                text: " · " + root.artists
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                color: root.tokens.secondary
+                font.family: root.tokens.fontFamily
+                renderType: root.tokens.textRenderType
+                font.pixelSize: root.tokens.captionSize
+            }
+        }
+        Text {
+            id: attribution
+            objectName: "lyricsAttribution"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Lyrics from LRCLIB"
+            textFormat: Text.PlainText
+            color: root.tokens.secondary
+            opacity: 0.7
+            font.family: root.tokens.fontFamily
+            renderType: root.tokens.textRenderType
+            font.pixelSize: root.tokens.captionSize
+        }
     }
 }

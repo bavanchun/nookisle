@@ -38,39 +38,10 @@ Item {
     readonly property bool barCentreShared: CatchZone.centreShared(barLayout, "io.github.bavanchun.nookisle")
     // Whether the host bar already shows the time, for the idle glance.
     readonly property bool barHasClock: Idle.layoutHasModule(barLayout, "omarchy.clock")
-    readonly property int barClearance: hostBar && hostBar.position === "top" && hostBar.barHidden !== true ? Math.max(0, hostBar.barSize || 0) : 0
-    // Island mode requires a live top bar to overlay; a hidden or non-top bar
-    // falls back to the legacy summon-only panel (plan Decisions, "Bar auto-hidden").
-    readonly property bool islandMode: coordinator && coordinator.island === true
-        && hostBar && hostBar.position === "top" && hostBar.barHidden !== true
-    property bool opened: false
-    property bool expanded: false
-    property bool dismissed: false
-    property bool explicitOpen: false
-    property real expansion: 0
-    property string chosenScreenName: ""
-    property real anchorCenterX: -1
-    property real anchorLeftX: -1
-    readonly property var targetScreen: {
-        var screens = Quickshell.screens;
-        for (var i = 0; i < screens.length; ++i)
-            if (screens[i].name === chosenScreenName)
-                return screens[i];
-        var focused = Hyprland.focusedMonitor;
-        for (var j = 0; j < screens.length; ++j)
-            if (focused && screens[j].name === focused.name)
-                return screens[j];
-        return screens.length ? screens[0] : null;
-    }
-    readonly property var monitor: targetScreen ? Hyprland.monitorFor(targetScreen) : null
-    // In island mode, fullscreen must be read from the island's own monitor,
-    // not the legacy target monitor: the two diverge whenever focus moved
-    // between the legacy `targetScreen` binding and `islandTargetScreen`.
+    // Fullscreen and screen selection follow the island's own monitor.
     readonly property var islandMonitor: islandTargetScreen ? Hyprland.monitorFor(islandTargetScreen) : null
-    readonly property var activeMonitor: root.islandMode ? root.islandMonitor : root.monitor
-    // Island mode picks its own screen, independent of the legacy chosenScreenName
-    // binding above: it moves only while collapsed (multi-monitor motion contract),
-    // never mid-expansion the way the legacy targetScreen binding does.
+    property bool opened: false
+    property bool explicitOpen: false
     property string islandScreenName: ""
     property bool pendingScreenMove: false
     // The primary island's screen for the displayMode setting
@@ -100,24 +71,18 @@ Item {
                 return screens[i];
         return screens.length ? screens[0] : null;
     }
-    readonly property var windowScreen: root.islandMode ? root.islandTargetScreen : root.targetScreen
+    readonly property var windowScreen: root.islandTargetScreen
     // Where the island shows: displayMode and preferredDisplay (settings).
     readonly property string displayMode: Displays.mode(root.surface.settings.displayMode)
     readonly property string preferredDisplay: root.surface.settings.preferredDisplay || ""
-    readonly property bool allDisplays: root.islandMode && displayMode === "all"
-    onDisplayModeChanged: if (root.islandMode) root.applyIslandScreen()
-    onPreferredDisplayChanged: if (root.islandMode) root.applyIslandScreen()
-    readonly property real availableWidth: targetScreen ? Math.max(1, targetScreen.width - palette.gap * 2) : palette.expandedWidth
-    readonly property real compactWidth: Math.min(palette.compactWidth, availableWidth)
-    readonly property real expandedWidth: Math.min(palette.expandedWidth, availableWidth)
+    readonly property bool allDisplays: displayMode === "all"
+    onDisplayModeChanged: root.applyIslandScreen()
+    onPreferredDisplayChanged: root.applyIslandScreen()
     // The island's own screen less a gap on each side: the cap on every
     // notch width, and on its window.
     readonly property real islandAvailableWidth: islandTargetScreen ? Math.max(1, islandTargetScreen.width - palette.gap * 2) : palette.openWidth
-    // Fullscreen on the active monitor's workspace. The legacy panel always
-    // hides over it; the island follows the fullscreenBehavior setting
-    // (qml/FullscreenPolicy.js): by default it hides only over the app that
-    // is playing. `explicitOpen` still overrides either wherever this is read.
-    readonly property var fullscreenWorkspace: activeMonitor && activeMonitor.activeWorkspace ? activeMonitor.activeWorkspace : null
+    // The island follows fullscreenBehavior; an explicit summon overrides it.
+    readonly property var fullscreenWorkspace: islandMonitor && islandMonitor.activeWorkspace ? islandMonitor.activeWorkspace : null
     readonly property bool workspaceFullscreen: !!fullscreenWorkspace && fullscreenWorkspace.hasFullscreen === true
     // The fullscreen client's class, from its own workspace's toplevels.
     // Hyprland fills lastIpcObject only on refreshToplevels(), which a
@@ -133,8 +98,7 @@ Item {
         }
         return "";
     }
-    readonly property bool fullscreenNow: !root.islandMode ? workspaceFullscreen
-        : FullscreenPolicy.shouldHide(root.surface.settings.fullscreenBehavior, workspaceFullscreen, fullscreenClass,
+    readonly property bool fullscreenNow: FullscreenPolicy.shouldHide(root.surface.settings.fullscreenBehavior, workspaceFullscreen, fullscreenClass,
             root.coordinator ? root.coordinator.selectedEndpoint : null)
     onWorkspaceFullscreenChanged: Hyprland.refreshToplevels()
     onFullscreenWorkspaceChanged: Hyprland.refreshToplevels()
@@ -152,17 +116,14 @@ Item {
         when: !root.hudHeld
         restoreMode: Binding.RestoreNone
     }
-    readonly property bool surfaceVisible: opened && panelAllowed && !!targetScreen && (!fullscreen || explicitOpen)
     // The Overlay window is never shown over fullscreen unless the island was
     // opened explicitly; the HUD cannot override this.
     // `explicitOpen` also overrides `autoShow`, so a keyboard summon with
     // `autoShow:false` still shows the island instead of reporting "open"
     // while nothing is visible.
-    readonly property bool islandVisible: root.islandMode && root.panelAllowed && !!root.coordinator
+    readonly property bool islandVisible: root.panelAllowed && !!root.coordinator
         && (root.coordinator.autoShow !== false || root.explicitOpen) && !!root.windowScreen && (!root.fullscreen || root.explicitOpen)
-    readonly property bool activeVisible: root.islandMode ? root.islandVisible : root.surfaceVisible
-    readonly property bool motionAllowed: surfaceVisible && !palette.reducedMotion
-    readonly property string artworkPath: activeVisible && coordinator && coordinator.selectedEndpoint ? String(coordinator.selectedEndpoint.artworkPath || "") : ""
+    readonly property string artworkPath: islandVisible && coordinator && coordinator.selectedEndpoint ? String(coordinator.selectedEndpoint.artworkPath || "") : ""
     // Native-probe gates G4 (drag files in) and G5 (drag files out) were not
     // performed: nobody dragged within the probe's 60s window. The
     // recorded decision keeps the DropArea and the drag-out handle enabled
@@ -187,14 +148,14 @@ Item {
         return "";
     }
     readonly property bool shelfDragOutSupported: true
-    // The island surface in island mode. In legacy mode it is not built, and
-    // this inert stand-in answers Panel's reads instead: collapsed, not
-    // interactive, the same resolved settings, and actions that do nothing.
-    readonly property var surface: surfaceLoader.item ? surfaceLoader.item : inertSurface
+    // Answer bindings before the always-active surface Loader has its item.
+    // This initialization object draws no UI and cannot open a panel.
+    readonly property var surface: surfaceLoader.item ? surfaceLoader.item : initializingSurface
     QtObject {
-        id: inertSurface
+        id: initializingSurface
         readonly property bool expanded: false
         readonly property var settings: Settings.resolve(root.coordinator ? root.coordinator.fileSettings : null)
+        readonly property int spectrumBarSpan: 0
         readonly property bool hudHeldHere: false
         readonly property int busyCount: 0
         readonly property string view: "home"
@@ -244,7 +205,7 @@ Item {
     Binding {
         target: root.coordinator
         property: "islandPointerActive"
-        value: root.islandMode && root.pointerIsland !== ""
+        value: root.pointerIsland !== ""
         when: root.coordinator !== null
     }
     // Exposes which screen the island lives on so each screen's BarWidget can
@@ -254,33 +215,31 @@ Item {
         target: root.coordinator
         property: "islandScreenName"
         // With an island on every screen, the one the pointer is on.
-        value: !root.islandMode ? "" : root.pointerIsland || root.primaryScreenName
+        value: root.pointerIsland || root.primaryScreenName
         when: root.coordinator !== null
     }
-    // The spectrum and the collapsed progress subscription follow the island
-    // itself, never the legacy panel that stands in for it on a hidden or
-    // non-top bar.
+    // The spectrum and progress subscription follow the visible islands.
     Binding {
         target: root.coordinator
         property: "islandShowing"
-        value: root.islandMode && root.islandViewVisible
+        value: root.islandViewVisible
         when: root.coordinator !== null
     }
     Binding {
         target: root.coordinator
         property: "spectrumBarSpan"
-        value: root.islandMode ? root.spectrumSurface.spectrumBarSpan : 0
+        value: root.spectrumSurface.spectrumBarSpan
         when: root.coordinator !== null
     }
-    // Volume HUD source: Panel-side only, loaded only in island mode with hud
+    // Volume HUD source: Panel-side only, loaded with hud
     // on, so this is the sole place in the plugin that ever imports
     // Quickshell.Services.Pipewire.
     Loader {
         id: volumeLoader
-        active: root.islandMode && root.panelAllowed && root.coordinator && root.coordinator.hud === true
+        active: root.panelAllowed && root.coordinator && root.coordinator.hud === true
         source: "components/VolumeSource.qml"
         // A fresh load must start from a fresh baseline: a stale per-sink
-        // baseline from before a `hud` toggle or a `barHidden` flip could
+        // baseline from before a `hud` toggle or a panel admission change could
         // otherwise compare a fresh first reading against a reading that no
         // longer reflects reality.
         onLoaded: {
@@ -335,7 +294,7 @@ Item {
     }
     Loader {
         id: deviceLoader
-        active: root.islandMode && root.panelAllowed && !!root.coordinator
+        active: root.panelAllowed && !!root.coordinator
             && root.coordinator.fileSettings.deviceEvents !== "off"
         source: "components/DeviceSource.qml"
         onLoaded: root.deviceState = DeviceEvents.resetDevices(root.deviceState)
@@ -377,7 +336,7 @@ Item {
         // happens mid-drag hides the bar under the pointer. The model still
         // tracks the volume baseline while suppressed.
         // With an island on every screen, only when no window can show it.
-        value: root.islandMode && !hudModel.held && Displays.readoutSuppressed(root.fullscreen
+        value: !hudModel.held && Displays.readoutSuppressed(root.fullscreen
             || ((root.surface.expanded || root.explicitOpen) && root.surface.settings.showOpenNotchHud === false),
             root.extraStates, root.surface.settings.showOpenNotchHud !== false)
     }
@@ -399,7 +358,7 @@ Item {
     // mute change.
     Loader {
         id: micLoader
-        active: root.islandMode && root.panelAllowed && !!root.coordinator && root.coordinator.hud === true
+        active: root.panelAllowed && !!root.coordinator && root.coordinator.hud === true
         source: "components/MicSource.qml"
     }
     Connections {
@@ -410,9 +369,9 @@ Item {
         target: root.coordinator
         // Volume never reaches the Service; only the brightness monitor's
         // hudEvent arrives here (plan Decisions, "HUD sources and triggers").
-        function onHudEvent(kind, level, muted) { if (root.islandMode) hudModel.show(kind, level, muted) }
+        function onHudEvent(kind, level, muted) { hudModel.show(kind, level, muted) }
     }
-    // Track and power peeks. Only in island mode, only while the collapsed
+    // Track and power peeks. Only while the collapsed
     // island is on screen, and never over the HUD: a peek is suppressed (and
     // dismissed) while the island is hidden, expanded, explicitly open, over
     // fullscreen, or showing the level readout. Suppression still advances
@@ -430,7 +389,7 @@ Item {
     BatteryModel {
         id: batteryModel
         powerStyle: root.surface.settings.powerStyle
-        enabled: root.islandMode && !!root.coordinator && root.coordinator.power === true
+        enabled: !!root.coordinator && root.coordinator.power === true
             && root.surface.settings.showPowerNotifications !== false
     }
     Connections {
@@ -440,18 +399,18 @@ Item {
     Binding {
         target: peekModel
         property: "suppressed"
-        value: !root.islandMode || hudModel.active || Displays.peekSuppressed(!root.islandVisible
+        value: hudModel.active || Displays.peekSuppressed(!root.islandVisible
             || root.surface.expanded || root.explicitOpen || root.fullscreen, root.extraStates)
     }
-    // Power source: Panel-side only, loaded only in island mode with power on,
+    // Power source: Panel-side only, loaded with power on,
     // so this loader is the plugin's one route to UPower; the import itself
     // lives in PowerSource.qml alone.
     // Privacy indicators: who uses the microphone, a camera or the screen.
     // PipeWire's graph plus the helper's camera holders; loaded only in
-    // island mode with the indicators on.
+    // the island with the indicators on.
     Loader {
         id: privacyLoader
-        active: root.islandMode && root.panelAllowed && !!root.coordinator
+        active: root.panelAllowed && !!root.coordinator
             && root.coordinator.fileSettings.privacyIndicators === true
         source: "components/PrivacySource.qml"
     }
@@ -461,9 +420,7 @@ Item {
             root.coordinator.reportActivity(root.closedActivities ? root.closedActivities.key : "",
                 privacyLoader.item ? privacyLoader.item.state : null);
     }
-    // The surface Loader builds the island with its activities already
-    // shown, and legacy mode has none: a new or gone surface reports too,
-    // not only a key change on the one in place.
+    // A newly built surface reports its current activity as well as changes.
     readonly property var closedActivities: surface.activities
     onClosedActivitiesChanged: reportPresence()
     Connections {
@@ -487,7 +444,7 @@ Item {
     }
     Loader {
         id: powerLoader
-        active: root.islandMode && root.panelAllowed && !!root.coordinator && root.coordinator.power === true
+        active: root.panelAllowed && !!root.coordinator && root.coordinator.power === true
         source: "components/PowerSource.qml"
         // `item` is already assigned here, so the Connections below receives
         // this first sample as a fresh baseline; the first real plug or
@@ -516,21 +473,6 @@ Item {
         target: root.coordinator
         function onSelectedEndpointChanged() { root.noteTrack() }
     }
-    NumberAnimation {
-        id: morph
-        target: root
-        property: "expansion"
-        duration: root.expanded ? palette.expandDuration : palette.collapseDuration
-        easing.type: Easing.OutCubic
-    }
-    function settleOrAnimate() {
-        morph.stop();
-        if (motionAllowed) {
-            morph.to = expanded ? 1 : 0;
-            morph.start();
-        } else
-            expansion = expanded ? 1 : 0;
-    }
     function open(payloadJson) {
         // Refused while the panel is not allowed (locked, or the lock state
         // not yet known), as the bar button refuses it: a summon kept from
@@ -545,160 +487,66 @@ Item {
         }
         if (!payload || typeof payload !== "object" || Array.isArray(payload))
             return;
-        if (typeof payload.screenName === "string" && payload.screenName)
-            chosenScreenName = payload.screenName;
-        anchorLeftX = typeof payload.anchorLeftX === "number" && isFinite(payload.anchorLeftX)
-            ? payload.anchorLeftX : -1;
-        anchorCenterX = typeof payload.anchorCenterX === "number" && isFinite(payload.anchorCenterX)
-            ? payload.anchorCenterX : -1;
-        dismissed = false;
         explicitOpen = true;
         // A summon always takes the keyboard back, even from a settings or
         // welcome window left open elsewhere, possibly on another workspace.
         panel.keyboardLent = false;
-        if (root.islandMode) {
-            root.surface.expandTo("home");
-            // Focus the surface root, where the shortcut keys and the view
-            // switch live; Return steps into the view, whose own Escape
-            // ladder (source/settings first, then collapse) runs from there.
-            Qt.callLater(root.surface.focusKeys);
-            // `autoClose` in the payload closes the island again after the
-            // summonAutoClose setting (0 never), unless the user interacts.
-            if (payload.autoClose === true)
-                root.surface.scheduleAutoClose(root.surface.settings.summonAutoClose);
-            else
-                root.surface.cancelAutoClose();
-            return;
-        }
-        opened = true;
-        expanded = true;
+        root.surface.expandTo("home");
+        Qt.callLater(root.surface.focusKeys);
+        if (payload.autoClose === true)
+            root.surface.scheduleAutoClose(root.surface.settings.summonAutoClose);
+        else
+            root.surface.cancelAutoClose();
     }
     function close() {
-        // A menu, picker or share action, or a held HUD bar, holds the
-        // island open; only Escape closes it then.
-        if (root.islandMode && (root.surface.busyCount > 0 || root.hudHeld === true))
+        // Menus, sharing and held HUD bars defer ordinary closes; Escape wins.
+        if (root.surface.busyCount > 0 || root.hudHeld === true)
             return;
-        dismissed = true;
         panel.keyboardLent = false;
-        if (root.islandMode) {
-            explicitOpen = false;
-            opened = false;
-            root.surface.collapse();
-            return;
-        }
-        // Hide before revoking the fullscreen override: its visibility handler
-        // also collapses the panel and must not re-enter an open surface binding.
-        // explicitOpen must be reset after opened, in that order: opened=false
-        // alone already drives surfaceVisible false (it is the first operand
-        // of its "&&" chain), so resetting explicitOpen first would instead
-        // flip surfaceVisible through its fullscreen-override term while
-        // `opened` is still true, re-entering the surfaceVisible evaluation
-        // from inside its own change handler and tripping a binding loop.
-        opened = false;
         explicitOpen = false;
-        expanded = false;
-    }
-    function toggleExpanded() {
-        if (panelAllowed && opened)
-            close();
+        opened = false;
+        root.surface.collapse();
     }
     function syncSubscription() {
         if (!coordinator) return;
-        if (root.islandMode) {
-            coordinator.viewVisible = root.islandViewVisible;
-            coordinator.viewExpanded = root.islandViewExpanded;
-        } else {
-            coordinator.viewVisible = surfaceVisible;
-            coordinator.viewExpanded = expanded && surfaceVisible;
-        }
+        coordinator.viewVisible = root.islandViewVisible;
+        coordinator.viewExpanded = root.islandViewExpanded;
     }
     onPanelAllowedChanged: {
         if (!panelAllowed) {
             opened = false;
-            expanded = false;
             explicitOpen = false;
-            dismissed = false;
-            if (root.islandMode) root.surface.resetForHost();
-        }
-        syncSubscription();
-    }
-    onExpandedChanged: {
-        if (!expanded && opened)
-            opened = false;
-        settleOrAnimate();
-        syncSubscription();
-        if (expanded)
-            Qt.callLater(() => { if (contentLoader.item) contentLoader.item.forceActiveFocus(); });
-    }
-    onSurfaceVisibleChanged: {
-        if (!surfaceVisible) {
-            expanded = false;
-            morph.stop();
-            expansion = 0;
+            root.surface.resetForHost();
         }
         syncSubscription();
     }
     onIslandVisibleChanged: syncSubscription()
-    onMotionAllowedChanged: if (!motionAllowed) {
-        morph.stop();
-        expansion = expanded ? 1 : 0;
-    }
     onCoordinatorChanged: {
         syncSubscription();
         reportPresence();
     }
-    onIslandModeChanged: {
-        if (root.islandMode) {
-            applyIslandScreen();
-            // Entering island mode must not inherit stale legacy state: a
-            // legacy explicit/hover-open panel left `opened`, `expanded` and
-            // `explicitOpen` set, which would suppress the HUD, keep the pill
-            // interactive over fullscreen and make `isPluginOpen` report open
-            // while the island is actually collapsed.
-            opened = root.surface.expanded;
-            expanded = false;
-            explicitOpen = false;
-            morph.stop();
-            expansion = 0;
-            syncSubscription();
-        } else {
-            // Island mode no longer drives visibility; reset the mirrored open
-            // state directly so the legacy panel does not inherit a stale
-            // hover-open flag left over from the island.
-            opened = false;
-            explicitOpen = false;
-            root.surface.resetForHost();
-            // The surface is unloaded without a close: withdraw its camera
-            // claim so no other island waits on a camera nobody holds.
-            if (root.primaryCameraName) {
-                root.noteCameraIsland(root.primaryCameraName, false);
-                root.primaryCameraName = "";
-            }
-        }
-    }
     onWindowScreenChanged: {
-        if (root.islandMode) root.surface.resetForHost();
+        root.surface.resetForHost();
     }
     onFullscreenChanged: {
-        if (root.islandMode && root.fullscreen && !root.explicitOpen)
+        if (root.fullscreen && !root.explicitOpen)
             root.surface.resetForHost();
     }
     Connections {
         target: Hyprland
-        function onFocusedMonitorChanged() { if (root.islandMode) root.applyIslandScreen(); }
+        function onFocusedMonitorChanged() { root.applyIslandScreen(); }
     }
     Connections {
         target: Quickshell
-        function onScreensChanged() { if (root.islandMode) root.applyIslandScreen(); }
+        function onScreensChanged() { root.applyIslandScreen(); }
     }
     Connections {
         target: root.surface
         function onExpandedChanged() {
-            if (root.islandMode) root.opened = root.surface.expanded;
+            root.opened = root.surface.expanded;
             if (!root.surface.expanded && root.pendingScreenMove) root.applyIslandScreen();
-            // Call directly rather than relying on `opened` mirroring into
-            // `surfaceVisible`: `opened` can already be true on entry, which
-            // would otherwise make `syncSubscription()` never run on a hover expand.
+            // Expansion updates the shared subscription even when visibility
+            // and the host's open state were already true.
             root.syncSubscription();
         }
         function onCollapseRequested() { root.explicitOpen = false; }
@@ -707,31 +555,17 @@ Item {
         // that lends it on its own never comes.
         function onSettingsOpened() { if (root.explicitOpen) panel.keyboardLent = true; }
     }
-    function rememberTargetScreen() {
-        // Read the current target after its binding has settled. Writing the
-        // remembered name from the change handler re-enters that same binding.
-        if (targetScreen && chosenScreenName !== targetScreen.name)
-            chosenScreenName = targetScreen.name;
-    }
-    onTargetScreenChanged: {
-        if (chosenScreenName !== "") {
-            expanded = false;
-            morph.stop();
-            expansion = 0;
-        }
-        Qt.callLater(rememberTargetScreen);
-    }
     onArtworkPathChanged: if (coordinator && typeof coordinator.retainArtwork === "function")
         coordinator.retainArtwork(artworkPath ? [artworkPath] : [])
     // Wheel volume from the collapsed pill. VolumeSource is loaded only in
-    // island mode with hud on, so with hud:false the wheel does nothing.
+    // the island with hud on, so with hud:false the wheel does nothing.
     Connections {
         target: root.surface
         function onVolumeStepRequested(delta) { if (volumeLoader.item) volumeLoader.item.adjust(delta) }
     }
     // Synced lyrics for the Lyrics view. Held here, not in the view, so the
-    // cache outlives a view change. It asks LRCLIB only in island mode with
-    // the opt-in lyrics setting on, and only while the island shows the
+    // cache outlives a view change. It asks LRCLIB with
+    // the opt-in lyrics setting on, and only while the island shows Home or the
     // Lyrics view. The position is the expanded view's own subscription.
     LyricsFetch {
         id: lyricsFetch
@@ -739,20 +573,19 @@ Item {
     LyricsSource {
         id: lyricsSource
         fetcher: lyricsFetch
-        lyricsEnabled: root.islandMode && !!root.coordinator && root.coordinator.lyrics === true
+        lyricsEnabled: !!root.coordinator && root.coordinator.lyrics === true
         wanted: root.islandVisible && root.surface.expanded && (root.surface.view === "home" || root.surface.view === "lyrics")
             || root.extraLyricsWanted
         endpoint: root.coordinator && root.coordinator.uiAllowed === true ? root.coordinator.selectedEndpoint : null
         positionSeconds: root.coordinator ? root.coordinator.positionSeconds : 0
     }
-    // The artwork's palette, once per artwork change at 48 px. Island mode
-    // only, so the legacy panel keeps the plain accent; artworkPath is already
+    // The artwork's palette, once per artwork change at 48 px. artworkPath is already
     // empty unless the island shows, and the helper publishes one only for a
     // local cover file or, with remoteArtwork on, a fetched one. The helper's
     // file:// URL goes through SourceState.artworkUrl, the rule Artwork uses.
     ColorQuantizer {
         id: quantizer
-        source: root.islandMode && palette.tintEnabled && !palette.highContrast
+        source: palette.tintEnabled && !palette.highContrast
             ? SourceState.artworkUrl(root.artworkPath) : ""
         depth: 3
         rescaleSize: 48
@@ -807,12 +640,12 @@ Item {
     }
     Variants {
         id: extraIslands
-        // Extra islands exist only in island mode, like the primary one.
-        model: root.islandMode ? root.extraScreens : []
+        // Extra islands exist only for the island, like the primary one.
+        model: root.extraScreens
         IslandWindow {
             tokens: palette
             coordinator: root.coordinator
-            shown: root.islandMode && root.panelAllowed && !!root.coordinator && root.coordinator.autoShow !== false
+            shown: root.panelAllowed && !!root.coordinator && root.coordinator.autoShow !== false
             hudModel: hudModel
             peekModel: peekModel
             batteryModel: batteryModel
@@ -911,7 +744,7 @@ Item {
             if (!root.coordinator.setBrightnessLevel(kind, value)) hudModel.cancelLocal(kind);
         }
     }
-    Component.onCompleted: if (root.islandMode) applyIslandScreen();
+    Component.onCompleted: applyIslandScreen();
     Component.onDestruction: {
         if (coordinator) {
             coordinator.viewVisible = false;
@@ -925,21 +758,17 @@ Item {
     PanelWindow {
         id: panel
         objectName: "nookisleWindow"
-        visible: root.activeVisible
+        visible: root.islandVisible
         screen: root.windowScreen
-        implicitWidth: root.islandMode ? palette.notchWindowWidth(root.islandAvailableWidth) : root.expandedWidth
-        implicitHeight: root.islandMode ? palette.notchWindowHeight() : palette.panelHeight(root.expandedWidth)
+        implicitWidth: palette.notchWindowWidth(root.islandAvailableWidth)
+        implicitHeight: palette.notchWindowHeight()
         anchors.top: true
-        anchors.left: !root.islandMode
-        margins.left: Math.max(palette.gap, Math.min(root.targetScreen ? root.targetScreen.width - width - palette.gap : 0,
-            root.anchorLeftX >= 0 ? root.anchorLeftX : (root.anchorCenterX >= 0 ? root.anchorCenterX : (root.targetScreen ? root.targetScreen.width / 2 : 0)) - width / 2))
-        margins.top: root.islandMode ? 0 : root.barClearance + palette.gap
+        margins.top: 0
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "nookisle"
-        WlrLayershell.layer: root.islandMode ? WlrLayer.Overlay : WlrLayer.Top
-        readonly property string focusMode: IslandKeys.keyboardFocus(visible, root.islandMode,
-            root.explicitOpen, root.surface.expanded, root.expanded, keyboardLent)
+        WlrLayershell.layer: WlrLayer.Overlay
+        readonly property string focusMode: IslandKeys.keyboardFocus(visible, root.explicitOpen, root.surface.expanded, keyboardLent)
         // The island lends the keyboard only to a settings or welcome window
         // opened while it is summoned (the header gear, or a verb). A window
         // that was already open, perhaps on another workspace, does not
@@ -950,67 +779,32 @@ Item {
         property bool keyboardLent: false
         onPluginWindowOpenChanged: keyboardLent = pluginWindowOpen && root.explicitOpen
         WlrLayershell.keyboardFocus: focusMode === "exclusive" ? WlrKeyboardFocus.Exclusive
-            : focusMode === "onDemand" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-        // In island mode, union the body with the active HUD bar and the
+            : WlrKeyboardFocus.None
+        // Union the body with the active HUD bar and the
         // closed drag catch zone. Both extra regions jump per state.
         mask: Region {
-            item: root.islandMode ? (root.surface.interactive ? root.surface.hitShape : null) : card
+            item: root.surface.interactive ? root.surface.hitShape : null
             Region {
-                item: root.islandMode && root.surface.interactive && root.surface.hudHitShape.present ? root.surface.hudHitShape : null
+                item: root.surface.interactive && root.surface.hudHitShape.present ? root.surface.hudHitShape : null
                 intersection: Intersection.Combine
             }
-            radius: root.islandMode ? 0 : card.radius
+            radius: 0
             Region {
-                item: root.islandMode && root.surface.interactive ? root.surface.catchZone : null
+                item: root.surface.interactive ? root.surface.catchZone : null
                 intersection: Intersection.Combine
             }
             Region {
-                item: root.islandMode && root.surface.interactive && root.surface.hoverExtension.height > 0
+                item: root.surface.interactive && root.surface.hoverExtension.height > 0
                     ? root.surface.hoverExtension : null
                 intersection: Intersection.Combine
             }
         }
-        Rectangle {
-            id: card
-            objectName: "nookisleCard"
-            anchors.fill: parent
-            visible: !root.islandMode
-            radius: palette.expandedRadius
-            opacity: root.expansion
-            color: palette.surface
-            border.color: palette.stroke
-            border.width: palette.highContrast ? palette.focusWidth : 1
-            clip: true
-            // The legacy panel's tree exists only in legacy mode: in island
-            // mode it would hold a few MiB for a card that never shows.
-            Loader {
-                id: contentLoader
-                objectName: "legacyContentLoader"
-                active: !root.islandMode
-                // Unloaded, it keeps no focus: keys never go to an empty Loader.
-                onActiveChanged: if (!active) focus = false
-                width: root.expanded ? root.expandedWidth : root.compactWidth
-                height: parent.height
-                anchors.horizontalCenter: parent.horizontalCenter
-                sourceComponent: IslandContent {
-                    tokens: palette
-                    coordinator: root.coordinator
-                    expanded: root.expanded
-                    admitted: root.panelAllowed
-                    visible: panel.visible
-                    onToggleRequested: root.toggleExpanded()
-                    onCloseRequested: root.close()
-                }
-            }
-        }
-        // The island surface exists only in island mode; legacy mode keeps
-        // none of its objects (Home, the camera, the shelf), and Panel reads
-        // root.surface, an inert stand-in, instead.
+        // The island is the only window content.
         Loader {
             id: surfaceLoader
             objectName: "nookisleSurfaceLoader"
             anchors.fill: parent
-            active: root.islandMode
+            active: true
             // Unloaded, it keeps no focus: keys never go to an empty Loader.
             onActiveChanged: if (!active) focus = false
             sourceComponent: IslandSurface {
@@ -1021,11 +815,10 @@ Item {
                 // The window's own visibility: hiding it stops the camera even
                 // while the island stays expanded.
                 hostVisible: panel.visible
-                // The collapsed pill sits flush over the bar like a notch: bind its
-                // height to the live bar size (26 on this host) so it neither
-                // overlaps nor gaps against the bar edge. Falls back to the design
-                // tokens' own pill height when the host bar height is unknown.
-                pillHeight: root.hostBar && root.hostBar.barSize > 0
+                // Match a top horizontal bar; other layouts use the notch
+                // default rather than inheriting a side bar's thickness.
+                pillHeight: root.hostBar && root.hostBar.position === "top"
+                    && root.hostBar.vertical !== true && root.hostBar.barSize > 0
                     ? root.hostBar.barSize : (palette.pillMinHeight + palette.small)
                 explicitOpen: root.explicitOpen
                 interactive: !root.fullscreen || root.explicitOpen

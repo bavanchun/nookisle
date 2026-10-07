@@ -24,8 +24,8 @@ Item {
     property real radius: 0
     property bool lit: true
     property bool playing: true
-    // Only the Home player opts into the blurred copy; the legacy panel and
-    // the Lyrics header keep the rings.
+    // Only the Home player opts into the blurred copy;
+    // the Lyrics header keeps the rings.
     property bool gpuAllowed: false
     readonly property bool gpuGlow: gpuAllowed && tokens.gpuEffects === true
     objectName: "artGlow"

@@ -42,7 +42,7 @@ Updates contain pre-built binaries. Before restarting, you can verify package ch
 ```sh
 cd ~/.config/omarchy/plugins/io.github.bavanchun.nookisle
 sha256sum -c SHA256SUMS
-gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.3 --deny-self-hosted-runners
+gh attestation verify SHA256SUMS --repo bavanchun/nookisle --signer-workflow bavanchun/nookisle/.github/workflows/release.yml --source-ref refs/tags/v1.0.4 --deny-self-hosted-runners
 ```
 
 ## Removal
@@ -68,7 +68,7 @@ Then undo anything you set up by hand:
 
 ## Build from source
 
-To build, test, and develop Nookisle from source, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/development.md).
+To build, test, and develop Nookisle from source, see the [Development Guide](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/development.md).
 
 ## Configure calendar sources
 
@@ -199,7 +199,7 @@ island, with `omarchy-shell nookisle hudReadout <kind> <device>`, whether
 the island will draw that readout. A prompt `ok` gives the readout to the island. Timeout, `unavailable`, and failure give
 it to Omarchy; the helper records that decision before acting so a later
 island source sample cannot duplicate the fallback OSD. The ownership record
-is described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md#media-key-readout-ownership).
+is described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md#media-key-readout-ownership).
 
 Without the bindings block, Omarchy's own OSD handles every one of these keys.
 Media playback and source-switching keys remain on their default bindings.
@@ -219,11 +219,10 @@ Change the delay with `omarchy-shell nookisle configure '{"summonAutoClose":5000
 
 ## Preferences and diagnostics
 
-With `island` on (the default), the island sits over the centre of a top bar:
-hover or tap it to open Home, or summon it from a key. With `island:false`, the
-title and play/pause button appear in the status bar instead, and clicking the
-title opens details below it. `autoShow: false` hides the bar widget, while
-explicit panel IPC still works.
+Nookisle always shows the island at the top centre of the screen: hover or
+tap it to open Home, or summon it from a key. It keeps the island with a hidden,
+bottom, side or vertical bar too. `autoShow: false` hides it until an explicit
+summon; panel IPC still works.
 The `nookisle` service IPC exposes redacted status and retry:
 
 ```sh
@@ -232,7 +231,6 @@ omarchy-shell nookisle retry
 omarchy-shell nookisle configure '{"reducedMotion":true}'
 omarchy-shell nookisle configure '{"highContrast":true}'
 omarchy-shell nookisle configure '{"autoShow":false}'
-omarchy-shell nookisle configure '{"island":false}'
 omarchy-shell nookisle configure '{"hud":false}'
 omarchy-shell nookisle settings     # open the settings window
 omarchy-shell nookisle onboarding   # show the welcome steps again
@@ -259,7 +257,7 @@ fetched from the web (Spotify's, and every browser source's) need
 `remoteArtwork`, which stays off by default; without it such a source shows a
 music glyph and the island keeps the theme accent.
 
-Browser exact-document control requires the [Chrome extension and native bridge](https://github.com/bavanchun/nookisle/blob/v1.0.3/bridge/README.md); MPRIS-only Chrome
+Browser exact-document control requires the [Chrome extension and native bridge](https://github.com/bavanchun/nookisle/blob/v1.0.4/bridge/README.md); MPRIS-only Chrome
 entries remain explicitly browser-scoped.
 
 ### Optional compositor blur and layer animation

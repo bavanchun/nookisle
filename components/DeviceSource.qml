@@ -6,7 +6,7 @@ import Quickshell.Bluetooth
 // Bluetooth devices, as raw samples for qml/DeviceEvents.js: one per device
 // when it appears and on every change of its connection or battery. The
 // only file that imports Quickshell.Bluetooth; Panel.qml loads it only in
-// island mode with device peeks on. Battery levels come from BlueZ's
+// the island with device peeks on. Battery levels come from BlueZ's
 // Battery1, which a headset reports only if it sends them; batteryAvailable
 // says whether it does.
 Item {

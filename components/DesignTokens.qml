@@ -88,10 +88,6 @@ QtObject {
     readonly property int bodySize: theme.bodySize || 12
     readonly property int captionSize: theme.captionSize || 11
     readonly property int focusWidth: 2
-    // The legacy panel's own morph. The island reads island*Duration instead
-    // (below), so island:false keeps this timing exactly as it was.
-    readonly property int expandDuration: reducedMotion ? 0 : 220
-    readonly property int collapseDuration: reducedMotion ? 0 : 180
     readonly property int feedbackDuration: reducedMotion ? 0 : 100
     // The collapsed pill: a fixed-width notch that never depends on title
     // length, so the window it lives in never resizes on metadata change.
@@ -99,8 +95,7 @@ QtObject {
     readonly property int pillMinHeight: 24
     // The switcher row between the pill and the expanded content.
     readonly property int bandSwitcher: target + small
-    // The single window-height authority for island mode, mirroring
-    // panelHeight() for the legacy compact/expanded window.
+    // The single height authority for an island with the player bands.
     function islandHeight(w) {
         return bandSwitcher + panelHeight(w);
     }
@@ -110,8 +105,7 @@ QtObject {
     function islandWindowHeight(w) { return islandHeight(w) + morphSlack; }
     // Island-only morph: boring.notch's open and close springs as SwiftUI
     // (response s, damping fraction) pairs, played through qml/Motion.js.
-    // The peek bloom uses the same pair. Only IslandSurface reads these,
-    // never the legacy panel.
+    // The peek bloom uses the same pair.
     readonly property real openResponse: 0.42
     readonly property real openDamping: 0.8
     readonly property real closeResponse: 0.45
@@ -164,8 +158,19 @@ QtObject {
     readonly property int tintDuration: reducedMotion ? 0 : 400
     // The header's tab capsule slides to the selected tab.
     readonly property int tabDuration: reducedMotion ? 0 : 350
+    // A tab switch eases the incoming view in over 220 ms (about 60 % of the
+    // capsule's glide), from 10 px to the side between Home and Shelf, or
+    // from 6 px below for the sub-views.
+    readonly property int viewEnterDuration: reducedMotion ? 0 : 220
+    readonly property int viewEnterShift: 10
+    readonly property int viewEnterRise: 6
     readonly property int lyricLineDuration: reducedMotion ? 0 : 180
     readonly property int lyricCurrentSize: titleSize + 2
+    // How long Home waits before it says a lyrics lookup is running, so a
+    // quick answer never flashes status text. An intent timing like
+    // hoverDwell: reduced motion does not shorten it. Writable so the tests
+    // can shorten it.
+    property int lyricRevealDelay: 1000
     // Artwork tint. Panel.qml writes artColor from the artwork's most vivid
     // colour; transparent means no artwork, and then every derived colour is
     // exactly the plain theme. The guards run against the live palette,
@@ -175,7 +180,7 @@ QtObject {
     // The notch's rule: text, tabs and filled controls stay neutral, and the
     // artwork colour reaches only graphics (the spectrum, the slider, the
     // hairline and the glow), lifted to a vibrance floor so a muddy cover
-    // still lights them up. The legacy panel keeps its tinted chrome.
+    // still lights them up.
     property bool neutralChrome: false
     readonly property bool tintActive: tintEnabled && !highContrast && artColor.a >= 1
     // Bars, the hairline, slider fills and the glow: 3:1 against the surface
@@ -301,6 +306,8 @@ QtObject {
     // springs, then the new fades in.
     readonly property int closedFadeOut: reducedMotion ? 0 : 90
     readonly property int closedFadeIn: reducedMotion ? 0 : 130
+    // A new track's title lifts out by this many px and settles in from below it.
+    readonly property real titleHandoffShift: 4
     readonly property int closedSpectrumWidth: spectrumBands * spectrumBarWidth + (spectrumBands - 1) * closedSpectrumGap
     // Closed-notch activities: the minimal glyph a second activity shrinks
     // to, how much the notch widens for it where the wings are narrow, and
@@ -329,6 +336,7 @@ QtObject {
     // The closed notch's cover while paused.
     readonly property real pausedWingOpacity: 0.6
     readonly property int scrubHeight: 5
+    readonly property int scrubHeightHover: 7
     readonly property int scrubHeightActive: 9
     // Marquee scroll speed in px/s, and its pause before each pass in ms.
     readonly property int marqueeSpeed: 30

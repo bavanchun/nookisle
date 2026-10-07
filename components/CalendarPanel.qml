@@ -448,7 +448,7 @@ Item {
         visible: root.noCalendars
         x: (root.listWidth - width) / 2
         y: wheel.y + wheel.height + 16
-        spacing: 6
+        spacing: root.tokens.gap
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "No calendars yet"
@@ -462,7 +462,8 @@ Item {
             objectName: "calendarAddButton"
             anchors.horizontalCenter: parent.horizontalCenter
             tokens: root.tokens
-            text: "Add a calendar"
+            tonal: true
+            text: "Add calendar"
             accessibleLabel: "Add a calendar in the settings"
             onActivated: root.addCalendarRequested()
             Keys.onReturnPressed: event => { event.accepted = true; root.addCalendarRequested(); }

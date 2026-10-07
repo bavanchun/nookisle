@@ -7,7 +7,7 @@ import Quickshell.Services.UPower
 import "../qml/Battery.js" as Battery
 
 // The only file in this plugin that imports Quickshell.Services.UPower.
-// Panel.qml loads this through a Loader, only in island mode with power on,
+// Panel.qml loads this through a Loader, only with power on,
 // so the Service-side lifecycle harness never depends on the power stack
 // (tests/source-contract.py's check_service_imports and check_upower_owner).
 //

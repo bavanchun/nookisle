@@ -112,8 +112,44 @@ Item {
             return timersAvailable ? "timers" : "home";
         return views.indexOf(name) >= 0 ? name : "home";
     }
-    onViewChanged: if (resolveView(view) !== view)
-        view = resolveView(view)
+    // The incoming view's entrance: one progress and the offset it starts
+    // from, read by the four view loaders. 1 means at rest.
+    property real viewEnter: 1
+    property real viewShiftX: 0
+    property real viewShiftY: 0
+    // The view before the last change; set only by onViewChanged.
+    property string previousView: "home"
+    function enterView(from, to) {
+        // Only a switch on the open, settled island enters: the open morph
+        // already brings in whatever it opens on, and a collapse resets.
+        if (!tokens || tokens.viewEnterDuration <= 0 || !openSettled || from === to) {
+            viewEnterAnim.stop();
+            viewEnter = 1;
+            return;
+        }
+        var sub = from === "lyrics" || from === "timers" || to === "lyrics" || to === "timers";
+        viewShiftX = sub ? 0 : (views.indexOf(to) > views.indexOf(from) ? 1 : -1) * tokens.viewEnterShift;
+        viewShiftY = sub ? tokens.viewEnterRise : 0;
+        viewEnterAnim.restart();
+    }
+    NumberAnimation {
+        id: viewEnterAnim
+        target: root
+        property: "viewEnter"
+        from: 0
+        to: 1
+        duration: root.tokens ? root.tokens.viewEnterDuration : 220
+        easing.type: Easing.OutCubic
+    }
+    onViewChanged: {
+        if (resolveView(view) !== view) {
+            view = resolveView(view);
+            return;
+        }
+        var from = previousView;
+        previousView = view;
+        enterView(from, view);
+    }
     onViewsChanged: if (resolveView(view) !== view)
         view = resolveView(view)
     onLyricsAvailableChanged: if (!lyricsAvailable && view === "lyrics")
@@ -320,8 +356,8 @@ Item {
         busyDeadlines = busyDeadlines.concat([Date.now() + busyTimeout]).sort(function (a, b) { return a - b; });
         scheduleBusyExpiry();
     }
-    // The host's safety resets: the lock screen or a panel disallow, leaving
-    // island mode, a screen change and fullscreen. They bypass the close
+    // The host's safety resets: the lock screen, a panel disallow,
+    // a screen change and fullscreen. They bypass the close
     // guard and drop every hold, so the island never shows over a lock
     // screen or carries a menu's busy state into another mode or screen.
     function resetForHost() {
@@ -815,7 +851,10 @@ Item {
         var blank = ["none", "hudIcon", "hudLevel"];
         return blank.indexOf(left) >= 0 && blank.indexOf(right) >= 0 && blank.indexOf(centre) >= 0;
     }
+    property bool closedContentInitialized: false
     function updateClosedContent() {
+        if (!closedContentInitialized)
+            return;
         if (modelLeft === shownLeft && modelRight === shownRight && modelCentre === shownCentre
             && modelMinimal === shownMinimal) {
             if (contentOut.running) {
@@ -847,6 +886,12 @@ Item {
             contentIn.restart();
         }
     }
+    // The wings hold the content the model asks for: a title handoff waits
+    // for this, since the content's own fade covers a swap.
+    readonly property bool closedContentSettled: closedContentInitialized && contentFade >= 1 && modelLeft === shownLeft
+        && modelRight === shownRight && modelCentre === shownCentre && modelMinimal === shownMinimal
+    // Runtime changes stay synchronous; construction initializes the content
+    // only after all model bindings have settled.
     onModelLeftChanged: updateClosedContent()
     onModelRightChanged: updateClosedContent()
     onModelCentreChanged: updateClosedContent()
@@ -887,14 +932,17 @@ Item {
             batteryPopoverOpen = false;
             header.overflowMenu.close();
             releaseKeys();
+            viewEnterAnim.stop();
+            viewEnter = 1;
         }
     }
     Component.onCompleted: {
         expansion = expanded ? 1 : 0;
         peekAmount = peekShowing ? 1 : 0;
-        shownLeft = modelLeft;
-        shownRight = modelRight;
-        shownCentre = modelCentre;
+        var left = modelLeft, right = modelRight, centre = modelCentre, minimal = modelMinimal;
+        if (left !== shownLeft || right !== shownRight || centre !== shownCentre || minimal !== shownMinimal)
+            swapClosedContent();
+        closedContentInitialized = true;
     }
     // The peek bloom. A peek never outlives an expansion, whoever owns the
     // model: the expanded card already shows everything the peek would.
@@ -944,8 +992,7 @@ Item {
     // the island does not stay open for good.
     onBusyCountChanged: if (busyCount === 0 && expanded && !pointerInside && !drop.containsDrag)
         grace.restart()
-    // The header gear opens the settings window in one click; the legacy
-    // panel keeps the inline settings view. Returns whether it opened.
+    // The header gear opens the settings window in one click.
     // The header gear opened (or raised) the settings window: the host
     // lends it the keyboard, even when the window was already open.
     signal settingsOpened()
@@ -1054,8 +1101,7 @@ Item {
     // the notch shares one white. A theme accent or error that already reads
     // on black is kept; one that does not falls back to the dark-surface
     // default. Sizes, radius and the artwork tint carry over; the tint then
-    // reaches only graphics (neutralChrome). The legacy panel keeps the
-    // host's own tokens.
+    // reaches only graphics (neutralChrome).
     // The island's sans faces, most preferred first. None is a dependency:
     // the first one installed wins, and sans-serif stands in for all.
     readonly property var uiFontFamilies: ["Inter", "Roboto", "Noto Sans"]
@@ -1218,6 +1264,7 @@ Item {
                 leftContent: root.shownLeft
                 rightContent: root.shownRight
                 centreContent: root.shownCentre
+                handoffAllowed: root.closedContentSettled
                 minimalContent: root.shownMinimal
                 activities: activityModel
                 privacy: root.privacy
@@ -1365,10 +1412,13 @@ Item {
                 // view shown.
                 Rectangle {
                     objectName: "keyFocusRing"
-                    x: header.x - (root.tokens ? root.tokens.focusWidth : 2)
-                    y: header.y
-                    width: header.sideWidth + 2 * (root.tokens ? root.tokens.focusWidth : 2)
-                    height: header.height
+                    // Hugs the tabs (or the back chevron) with a pixel of air
+                    // inside the border, like a selection outline.
+                    readonly property real inflate: (root.tokens ? root.tokens.focusWidth : 2) + 1
+                    x: header.x + header.tabsRect.x - inflate
+                    y: header.y + header.tabsRect.y - inflate
+                    width: header.tabsRect.width + 2 * inflate
+                    height: header.tabsRect.height + 2 * inflate
                     radius: height / 2
                     color: "transparent"
                     border.width: root.tokens ? root.tokens.focusWidth : 2
@@ -1395,6 +1445,11 @@ Item {
                 Loader {
                     id: homeLoader
                     objectName: "homeViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     x: root.tokens ? root.tokens.medium : 12
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width - 2 * x
@@ -1423,6 +1478,11 @@ Item {
                 Loader {
                     id: shelfViewLoader
                     objectName: "shelfViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     x: root.tokens ? root.tokens.medium : 12
                     width: parent.width - 2 * x
@@ -1444,6 +1504,11 @@ Item {
                 Loader {
                     id: lyricsViewLoader
                     objectName: "lyricsViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width
                     // The open body under the switcher, at rest: the view
@@ -1459,6 +1524,11 @@ Item {
                 Loader {
                     id: timersViewLoader
                     objectName: "timersViewLoader"
+                    opacity: root.viewEnter
+                    transform: Translate {
+                        x: root.viewShiftX * (1 - root.viewEnter)
+                        y: root.viewShiftY * (1 - root.viewEnter)
+                    }
                     y: root.tokens ? root.tokens.bandSwitcher : 36
                     width: parent.width
                     height: root.restHeight - y

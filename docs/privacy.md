@@ -58,8 +58,8 @@ on the session bus runs as you and could read the same file itself; the
 island only draws it as an image and sends nothing anywhere. With `tint` on, the island reads
 the colours of that same local file in memory; no colour, file or URL leaves
 the machine for it. Exact policies and adversarial
-checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.3/helper/artwork-loader.cpp) and
-[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.3/tests/helper/artwork-loader-test.cpp).
+checks live in [the loader](https://github.com/bavanchun/nookisle/blob/v1.0.4/helper/artwork-loader.cpp) and
+[its tests](https://github.com/bavanchun/nookisle/blob/v1.0.4/tests/helper/artwork-loader-test.cpp).
 
 ## Level readout
 
@@ -95,7 +95,7 @@ audio tools, and it exists only while music plays on the visible island
 (it keeps running while the island is expanded, to avoid a reconnect on every
 hover). It stops when
 playback pauses, motion is reduced (the pill shows a still glyph instead), or
-the island is hidden or turned off (`island:false`),
+the island is hidden,
 and on lock when the host exposes its lock service. On a host that
 scopes the lock service away from plugins (Omarchy since 2026-09) there is no
 lock signal to read, so a playing, visible island keeps the capture running
@@ -110,8 +110,8 @@ battery) and whether the machine runs on battery, through
 [PowerSource.qml](../components/PowerSource.qml), to draw power peeks or banners and the
 battery UI. The values stay in memory as the last sample the
 peek compares against; nothing is written to disk, logged, sent anywhere or
-exposed through `status()` or IPC. `power:false`, `island:false` or a
-hidden bar unload the reader entirely.
+exposed through `status()` or IPC. `power:false` or withdrawn panel admission unloads the reader entirely.
+Bar placement and visibility do not disable the island or its power reader.
 
 The same reader also collects what the header battery gauge and its popover
 show: the charge state, UPower's time to full or empty, the laptop battery's
@@ -189,22 +189,29 @@ default. Turn it on with the "Synced lyrics" row in the island's settings, or
 `omarchy-shell nookisle configure '{"lyrics":true}'`; `lyrics:false`
 turns it off again.
 
-- **What is sent.** One HTTPS `GET` to `https://lrclib.net/api/get` carrying
-  the track title, its first artist, the album (when the source has one) and
-  the length rounded to whole seconds, plus a `Lrclib-Client` header naming
-  Nookisle. Like any HTTPS request it also reveals the machine's IP
-  address and ordinary request headers to LRCLIB and its CDN. No player name,
-  file path, artwork, account or position is sent.
+- **What is sent.** A normal lookup is one HTTPS `GET` to
+  `https://lrclib.net/api/get` carrying the track title, its first artist, the
+  album (when the source has one) and the length rounded to whole seconds, plus
+  a `Lrclib-Client` header naming Nookisle. Like any HTTPS request it also
+  reveals the machine's IP address and ordinary request headers to LRCLIB and
+  its CDN. No player name, file path, artwork, account or position is sent.
+  Two cases send more, up to four requests in all, to the same endpoint and
+  never while the island is closed: when LRCLIB answers "busy" the same
+  request is repeated once after 2 s, and when it answers "not found" the
+  lookup tries the same track without the album, then with the title minus a
+  remaster mark or a trailing "(feat. …)", carrying the same fields or fewer.
+  A narrower answer is used only when its length is within a second of the
+  track's. A redirect to any other host is refused.
 - **Which sources.** Every source is eligible, browser tabs included: with
   lyrics on, a YouTube tab's title goes to LRCLIB the same way a Spotify
   track's does.
-- **When.** Only while lyrics is on, the island is in island mode, on screen
+- **When.** Only while lyrics is on, the island is on screen
   and open, and it shows Home (for its one-line lyric) or the Lyrics view:
   once when either opens, and once per track change while one stays open,
   after the new track has held for 0.4 s, so skipping through tracks does not
   send each one. A track that reports no length, title or artist is never
   looked up. Closing the island, switching to the Shelf or turning the setting
-  off sends nothing further.
+  off sends nothing further, including a repeat that was waiting.
 - **Bounds.** The request runs in a separate short-lived process
   (`nookisle-artwork-fetch --lyrics`) that refuses any answer over 256 KiB while
   reading it and never decompresses (`Accept-Encoding: identity`), with an 8 s
@@ -214,7 +221,9 @@ turns it off again.
   at 262,144 characters, 2000 lines and 512 characters a line.
 - **What is kept.** Answers live in memory only, in a cache of the last 16
   tracks (including "not found", so a missing track is not asked for again
-  until Try again). Nothing is written to disk, logged, or exposed through
+  during the session; turning lyrics off and on forgets it). An error, such as
+  a busy or unreachable LRCLIB, is never kept, so Try again asks the service
+  again. Nothing is written to disk, logged, or exposed through
   `status()` or IPC. Turning lyrics off aborts a request in flight and empties
   the cache; unloading the plugin forgets it too.
 
@@ -225,8 +234,7 @@ service; coverage and availability are its own. The view credits it.
 
 Calendar access is off by default (`showCalendar:false`). The helper reads
 only configured `.ics` files or vdir folders, and only while the calendar
-source is active: while `showCalendar` is on, the plugin is in island mode and
-the panel is admitted (unlocked). That includes times the island is hidden
+source is active: while `showCalendar` is on and the panel is admitted (unlocked). That includes times the island is hidden
 (`autoShow:false`, or over fullscreen), so the data is ready when it shows.
 While the source is active the helper watches those paths for changes (a burst
 of changes, such as a sync, is read once about 300 ms after it settles), and
@@ -284,8 +292,7 @@ a 4 MiB response cap (and a matching read buffer), and send credentials only to
 the matching origin. A remote server learns the machine's IP address and the requested
 calendar URL; CalDAV additionally receives its Basic authorization header, at every
 refresh while the source is active, including while the island is hidden. The helper
-does not fetch while the calendar source is inactive (calendar off, island mode off,
-or locked), and closes its pooled connections whenever the sources are reconfigured.
+does not fetch while the calendar source is inactive (calendar off or locked), and closes its pooled connections whenever the sources are reconfigured.
 
 ## File shelf
 
@@ -377,7 +384,7 @@ The status endpoint reports counts, booleans, setting values and diagnostic
 codes, not song titles, page URLs or a tab history. The media-key verbs return only `ok`,
 `busy` or `unavailable`. They do give any same-user process a way to play,
 pause or skip an extension-controlled browser document, which no other session
-mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/architecture.md#selection-and-view-subscription)
+mechanism can reach; see [architecture documentation](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/architecture.md#selection-and-view-subscription)
 for why that is accepted. Local debug/test artifacts should be
 reviewed before sharing; system process inventories and screenshots can still
 include personal information outside the plugin's own diagnostics.

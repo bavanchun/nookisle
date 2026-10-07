@@ -3,7 +3,7 @@
 The island's features beyond the notch itself: the level readout, peeks,
 battery, privacy indicators, timers, screen recording, screenshots to the
 shelf, lyrics, the shelf and the calendar. The notch shell, the header, Home,
-gestures and keys are described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/interaction-reference.md); defaults and
+gestures and keys are described in the [interaction reference](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/interaction-reference.md); defaults and
 controls are in [settings and configuration](settings.md).
 
 ## Level readout
@@ -32,7 +32,7 @@ level, and the source re-reads the LED's sysfs level and emits one `keyboard`
 event. The verb returns `ok`, or `unavailable` when the HUD is off or no
 keyboard LED was found. Before acting, the bindings' helper asks
 `hudReadout(kind, device)` whether the island will draw the key's readout. It
-answers `ok` only with `hud` and `island` on, the island on screen, its
+answers `ok` only with `hud` on, the island on screen, its
 readout not suppressed (Panel publishes `HudModel.suppressed`, which covers
 fullscreen and an open island with `showOpenNotchHud` off) and the plugin
 admitted; for `keyboard` the source must have found an LED, and for
@@ -108,14 +108,13 @@ starts it.
 fullscreen client should hide the island. The selected endpoint supplies its
 MPRIS `DesktopEntry` or, for a Chrome document, the browser class. The pure
 policy requires an exact class match after case normalization and removal of
-the optional `.desktop` suffix. In island mode, `Panel.qml` applies it to the
+the optional `.desktop` suffix. `Panel.qml` applies it to the
 fullscreen client on the island's own monitor: it reads that client's class
 from `lastIpcObject` of the active workspace's toplevels, asks Hyprland to
 refresh them whenever the workspace or its fullscreen state changes, and
 re-evaluates when the selected source changes. The result drives everything
 that already read "fullscreen": the island's visibility, its interactivity and
-the HUD and peek suppression, and an explicit open still overrides it. The
-legacy panel keeps hiding over any fullscreen workspace.
+the HUD and peek suppression, and an explicit open still overrides it.
 
 ## Idle notch
 
@@ -207,7 +206,7 @@ card, and `Panel.qml` feeds the model and passes its state to
   peek. [PowerSource.qml](../components/PowerSource.qml), the only file that
   imports `Quickshell.Services.UPower`, reports the display device's
   `ready`, `isLaptopBattery`, `isPresent`, `percentage` (0..1) and
-  `UPower.onBattery`; `Panel.qml` loads it only in island mode with `power`
+  `UPower.onBattery`; `Panel.qml` loads it only with `power`
   on, and resets the power baseline on every load.
 - **Device peek** (`deviceEvents`, `audio` by default). A Bluetooth device
   connecting blooms a pill-high 300px row for 2.5s (`devicePeekDuration`):
@@ -290,7 +289,7 @@ optional percentage, and [BatteryPopover.qml](../components/BatteryPopover.qml)
 shows the percentage, state, time estimate, health and power-saver, with a
 "Power settings" button only when `powerCommand` is set.
 
-In island mode, `Panel.qml` feeds each PowerSource sample to `BatteryModel`
+`Panel.qml` feeds each PowerSource sample to `BatteryModel`
 (and to `PeekModel`). The open header shows the gauge in its battery slot
 while a battery is present, `power` is on (it loads the reader) and
 `showBatteryIndicator` is on; a tap opens the
@@ -347,20 +346,20 @@ other video source, such as xdg-desktop-portal-hyprland's. Node types and links
 need no tracking; only the capture streams in use are tracked, for their
 application names ([qml/Privacy.js](../qml/Privacy.js)). Apps that open a
 camera without PipeWire, as browsers usually do, are found by the helper's
-camera watch (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)), which the
+camera watch (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/protocol.md#desktop-signals)), which the
 Service runs only while the indicators are on and the island is allowed on
-screen. `Panel.qml` loads the source only in island mode with the setting on.
+screen. `Panel.qml` loads the source only with the setting on.
 
 ## Timers
 
 With `timers` on (the default), the island's timers are Omarchy's reminders:
 systemd user timers made by `omarchy-reminder <minutes> [label]`. They outlive
-a shell restart, Omarchy notifies when one runs out even with the island off,
+a shell restart, Omarchy notifies when one runs out even with the island hidden,
 and the bar's Reminder indicator shows the same ones. The Service reads them
 with `omarchy-reminder show --json` ([qml/Timers.js](../qml/Timers.js)) when it
 starts, after each change the island makes, when the helper sees a reminder
 unit come or go (so reminders set from the bar or a terminal appear at once;
-see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)), and once when the soonest
+see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/protocol.md#desktop-signals)), and once when the soonest
 is due. Nothing polls.
 
 - **Closed.** The soonest timer is an activity (see the
@@ -405,7 +404,7 @@ record button beside the Timers button in the header's right-hand slots
 offers Stop instead. A tap on the closed notch opens the island as usual.
 
 The helper learns of a recording from Omarchy's own marker file (see the
-[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)): it appears once the recorder
+[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/protocol.md#desktop-signals)): it appears once the recorder
 produces output and goes when the video is saved, with the video's path.
 Its modification time is the start. At start, a marker left behind by a crash
 counts only while `gpu-screen-recorder` runs.
@@ -424,7 +423,7 @@ the notch blooms a 4s peek with a small thumbnail, "Screenshot" and "Added to
 shelf" (`capturePeekDuration`), and the file is ready to drag into a chat or
 share. Peeks take no input, which is why it is automatic rather than a tap.
 The helper watches the screenshot folder for `screenshot-*.png` files closed
-after writing or moved in (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#desktop-signals)):
+after writing or moved in (see the [protocol](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/protocol.md#desktop-signals)):
 `$OMARCHY_SCREENSHOT_DIR`, else the Pictures folder, or `screenshotDir` when
 set. A folder that does not exist is refused and nothing is watched. The
 thumbnail is decoded once at 48x32; the watch runs only while the option is
@@ -440,9 +439,10 @@ shows falls back to Home. A tap on Home's lyric line opens it.
 [LyricsSource.qml](../components/LyricsSource.qml), which asks LRCLIB only
 while Home or the Lyrics view is open (see [privacy](privacy.md#lyrics)).
 
-**Synced lines.** Under a header with the 40px artwork (with the tint glow),
-the title, the artists and a tinted progress hairline, the view follows the
-song:
+**Synced lines.** The view follows the song across its whole card, with a
+tinted progress hairline and a footer under the lines: the 20px cover, "Title
+· Artists" and, on the right, "Lyrics from LRCLIB" (with nothing playing, only
+the attribution):
 
 - the current line, large (`lyricCurrentSize` + 4) and semi-bold in the
   card's text colour, wrapping to two lines;
@@ -450,8 +450,11 @@ song:
 - the next line in the title size, slightly dimmed, then the one after it
   fainter still.
 
-The current line rests a little above the middle of the stage, and the
-card's own colour fades the lines out at the stage's top and bottom edges.
+The current line rests at 40 % of the stage, so the previous line, the
+current line and the next line are all fully visible (a long current line
+wraps to two lines), and the card's own colour fades the lines out at the
+stage's top and bottom edges. In high contrast every neighbouring line is at
+least 0.66 opaque.
 When the song moves on by a line, the whole group glides up one step while the
 next line grows into the current one (scale and brightness), over 360 ms
 `OutCubic` (twice `lyricLineDuration`); a seek or a first line fades in with a
@@ -474,10 +477,17 @@ error colour):
 | No title or artist | Nothing to look up |
 | Nothing playing | Nothing is playing |
 | Lyrics off | Lyrics are off |
-| Error | Lyrics could not be loaded, with the reason (timeout, too large, connection) and a **Try again** button |
+| Error | Lyrics could not be loaded, with the reason (LRCLIB busy or limiting requests, timeout, too large, connection) and a **Try again** button |
 
-Try again drops a cached "not found" too, so it really asks again. The footer
-always reads "Lyrics from LRCLIB".
+A busy LRCLIB is asked once more after 2 s before the error shows, and after a
+"not found" the lookup tries the track without its album and without a remaster
+mark or "(feat. …)" before it gives up. Try again appears for errors only: a
+"not found" is kept for the session, and turning lyrics off and on clears it.
+The footer always carries "Lyrics from LRCLIB".
+
+On Home the lyric line reads the same state in shorter words ("No synced
+lyrics", "Unsynced lyrics only", "Lyrics unavailable" for an error), stays
+blank for the first second of a lookup, and offers the view's detail on hover.
 
 ## Shelf
 
@@ -517,8 +527,7 @@ view's implicit height covers the strip and the refusal notice under it, and
 the open body gives it that room. While the Shelf tab shows, the island's own
 drop area steps aside so drops reach the strip and its notice; on Home and
 while closed, a file drop still lands on the shelf through the island. A drag
-held over the strip or the Share tile keeps the island open like a drag out. The
-legacy panel has no shelf strip. The strip holds:
+held over the strip or the Share tile keeps the island open like a drag out. The strip holds:
 
 - a square Share drop tile ([ShelfShareTile.qml](../components/ShelfShareTile.qml)).
   Files dropped on it are shared without being shelved. It accepts only Copy
@@ -576,7 +585,7 @@ and publishes twice the nearer gap from the notch centre to a row
 resizes, it withdraws the span at once (-1, so the catch zone never overlaps a
 row that grew) and publishes the new span 250 ms after the rows settle; an
 animating row changes the input region once when it starts and once when it
-settles, never per frame. When that layout cannot be found, or outside island mode, it
+settles, never per frame. When that layout cannot be found, or without a top horizontal bar, it
 publishes -1 and the catch zone stays off; the closed body keeps its own input
 region either way. The region is part of the layer
 input region only while closed, so it jumps once as the island opens or closes
@@ -656,7 +665,7 @@ midnight does the same. Beside the mirror it uses its
 - Showing today, the list opens at the event happening now, else the next
   one still ahead (`autoScrollToNextEvent`).
 - An empty day says "Nothing on today" (or "on this day"). With no calendar
-  configured at all it says "No calendars yet" with an Add a calendar button,
+  configured at all it says "No calendars yet" with a tonal Add calendar button,
   which opens the settings window on Calendar.
 - The dimmed shades of its white text (the year, weekdays, times, completed
   reminders) turn fully white in high contrast.
@@ -736,4 +745,4 @@ answer a keyring unlock prompt; a prompt left unanswered reports
 source of that account and then announces the change, so the window refreshes
 without a second request. Clearing a password is always explicit; the editor
 clears only when no remaining source uses the same URL and user. See
-[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.3/docs/protocol.md#calendar) for the message shapes.
+[protocol](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/protocol.md#calendar) for the message shapes.

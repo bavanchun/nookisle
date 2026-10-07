@@ -9,6 +9,10 @@ Controls.AbstractButton {
     required property var tokens
     property string iconName: ""
     property bool primary: false
+    // A quiet action: the wash behind the selected tab, 0.14 of the ink at
+    // rest, 0.20 hovered and 0.24 pressed. The filled primary style stays
+    // for the one action that fixes an error.
+    property bool tonal: false
     // A player button, after boring.notch's: it dips to 0.9 while pressed
     // and springs back (0.3, 0.3), on the raised surface when hovered.
     property bool bounce: false
@@ -86,7 +90,8 @@ Controls.AbstractButton {
     background: Rectangle {
         radius: height / 2
         readonly property bool raised: root.bounce && !root.primary && (root.hovered || root.down)
-        color: root.primary && !root.actionEnabled ? root.tokens.track : root.primary ? (root.down && !root.pending ? Qt.darker(root.tokens.primaryFill, 1.12) : root.hovered ? Qt.lighter(root.tokens.primaryFill, 1.08) : root.tokens.primaryFill) : raised ? root.tokens.raisedSurface : (root.hovered || root.down ? root.tokens.hover : "transparent")
+        readonly property real wash: root.down && !root.pending ? 0.24 : root.hovered ? 0.20 : 0.14
+        color: root.primary && !root.actionEnabled ? root.tokens.track : root.primary ? (root.down && !root.pending ? Qt.darker(root.tokens.primaryFill, 1.12) : root.hovered ? Qt.lighter(root.tokens.primaryFill, 1.08) : root.tokens.primaryFill) : root.tonal ? Qt.rgba(root.tokens.text.r, root.tokens.text.g, root.tokens.text.b, wash) : raised ? root.tokens.raisedSurface : (root.hovered || root.down ? root.tokens.hover : "transparent")
         border.width: root.visualFocus ? root.tokens.focusWidth : raised ? 1 : 0
         border.color: root.visualFocus ? (root.primary ? root.tokens.text : root.tokens.accent) : root.tokens.raisedStroke
         // A bouncing button scales as a whole instead.
@@ -127,6 +132,7 @@ Controls.AbstractButton {
             font.family: root.tokens.fontFamily
             renderType: root.tokens.textRenderType
             font.pixelSize: root.tokens.bodySize
+            font.weight: root.tonal ? Font.Medium : Font.Normal
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight

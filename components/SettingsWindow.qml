@@ -2,8 +2,8 @@ import QtQuick
 import Quickshell
 
 // The settings window: a fixed 700x600, in the dark tokens. The Service
-// owns its lifetime and opens it from the settings() verb, the legacy
-// settings view, and later the header gear; its own closed signal tells the
+// owns its lifetime and opens it from the settings() verb and the header
+// gear; its own closed signal tells the
 // Service the user closed it.
 FloatingWindow {
     id: window
