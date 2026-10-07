@@ -474,10 +474,13 @@ error colour):
 | No title or artist | Nothing to look up |
 | Nothing playing | Nothing is playing |
 | Lyrics off | Lyrics are off |
-| Error | Lyrics could not be loaded, with the reason (timeout, too large, connection) and a **Try again** button |
+| Error | Lyrics could not be loaded, with the reason (LRCLIB busy or limiting requests, timeout, too large, connection) and a **Try again** button |
 
-Try again drops a cached "not found" too, so it really asks again. The footer
-always reads "Lyrics from LRCLIB".
+A busy LRCLIB is asked once more after 2 s before the error shows, and after a
+"not found" the lookup tries the track without its album and without a remaster
+mark or "(feat. …)" before it gives up. Try again appears for errors only: a
+"not found" is kept for the session, and turning lyrics off and on clears it.
+The footer always reads "Lyrics from LRCLIB".
 
 ## Shelf
 

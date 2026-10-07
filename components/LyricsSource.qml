@@ -10,9 +10,14 @@ import "../qml/Lyrics.js" as Lyrics
 // `lyricsEnabled` (the opt-in `lyrics` setting) and `wanted` (the Lyrics view
 // is open) both hold: on opening, or once a track change settles while open.
 // It sends the title, the first artist, the album and the rounded length,
-// and is bounded by a timeout and a streaming size cap. When LRCLIB refuses
-// with "busy" the lookup waits `retryMs` and asks once more; any other error
-// ends it. Turning lyrics off aborts it and forgets every cached answer.
+// and is bounded by a timeout and a streaming size cap. A lookup is a walk
+// over Lyrics.requestPlan: the first question, and only after LRCLIB answers
+// "not found" the same question without the album, then with the stripped
+// title (at most three questions; a fallback answer must match the track
+// length). When LRCLIB refuses with "busy" the walk waits `retryMs` and asks
+// the same question once more, once per lookup; any other error ends it. Only
+// a conclusive walk is cached, and none continues once the view closes.
+// Turning lyrics off aborts it and forgets every cached answer.
 QtObject {
     id: root
     property bool lyricsEnabled: false
@@ -59,8 +64,11 @@ QtObject {
     property var cache: []
     property var active: null
     property string activeKey: ""
-    // The request of the lookup in flight, and whether its one retry is spent.
-    property string activeUrl: ""
+    // The walk in flight: its questions, the one being asked, the best
+    // untimed answer so far, and whether its one retry is spent.
+    property var plan: []
+    property int step: 0
+    property var best: null
     property bool retried: false
 
     function apply(result) {
@@ -79,7 +87,8 @@ QtObject {
         retryTimer.stop()
         root.active = null
         root.activeKey = ""
-        root.activeUrl = ""
+        root.plan = []
+        root.best = null
         if (root.fetcher && typeof root.fetcher.cancel === "function")
             root.fetcher.cancel()
     }
@@ -101,9 +110,37 @@ QtObject {
     function finish(status, text) {
         var key = root.activeKey
         timeout.stop()
+        var asked = root.plan[root.step]
+        var result = Lyrics.interpret(status, text, root.step > 0 ? asked.duration : undefined)
+        if (result.state === "error") {
+            root.fail(result.code)
+            return
+        }
+        var more = root.step + 1 < root.plan.length
+        // The first question goes on only after a real "not found"; the
+        // narrower ones go on until synced lyrics turn up.
+        if (more && (root.step === 0 ? status === 404 : result.state !== "ready")) {
+            // Untimed words beat "instrumental"; neither ends the walk.
+            if (result.state === "plain" || (result.state === "instrumental" && !root.best))
+                root.best = result
+            if (!root.lyricsEnabled || !root.wanted) {
+                // Closed or turned off meanwhile: no further question, and a
+                // walk stopped before its last question caches nothing.
+                abort()
+                if (key === root.trackKey)
+                    show("idle")
+                return
+            }
+            root.step++
+            send()
+            return
+        }
+        if (root.step > 0 && result.state !== "ready")
+            result = root.best || {state: "none", cache: true}
         root.active = null
         root.activeKey = ""
-        var result = Lyrics.interpret(status, text)
+        root.plan = []
+        root.best = null
         if (result.cache)
             root.cache = Lyrics.lruPut(root.cache, key, result, root.cacheLimit)
         // An answer for a track that is no longer on screen still fills the
@@ -163,11 +200,13 @@ QtObject {
         root.active = root.fetcher
         root.activeKey = key
         root.retried = false
-        root.activeUrl = Lyrics.requestUrl(root.endpointUrl, meta)
+        root.best = null
+        root.step = 0
+        root.plan = Lyrics.requestPlan(meta)
         send()
     }
     function send() {
-        root.fetcher.start(root.activeUrl)
+        root.fetcher.start(Lyrics.requestUrl(root.endpointUrl, root.plan[root.step]))
         timeout.restart()
     }
     // Try again from the view. Errors are never cached; a cached miss is

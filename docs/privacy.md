@@ -189,12 +189,19 @@ default. Turn it on with the "Synced lyrics" row in the island's settings, or
 `omarchy-shell nookisle configure '{"lyrics":true}'`; `lyrics:false`
 turns it off again.
 
-- **What is sent.** One HTTPS `GET` to `https://lrclib.net/api/get` carrying
-  the track title, its first artist, the album (when the source has one) and
-  the length rounded to whole seconds, plus a `Lrclib-Client` header naming
-  Nookisle. Like any HTTPS request it also reveals the machine's IP
-  address and ordinary request headers to LRCLIB and its CDN. No player name,
-  file path, artwork, account or position is sent.
+- **What is sent.** A normal lookup is one HTTPS `GET` to
+  `https://lrclib.net/api/get` carrying the track title, its first artist, the
+  album (when the source has one) and the length rounded to whole seconds, plus
+  a `Lrclib-Client` header naming Nookisle. Like any HTTPS request it also
+  reveals the machine's IP address and ordinary request headers to LRCLIB and
+  its CDN. No player name, file path, artwork, account or position is sent.
+  Two cases send more, up to four requests in all, to the same endpoint and
+  never while the island is closed: when LRCLIB answers "busy" the same
+  request is repeated once after 2 s, and when it answers "not found" the
+  lookup tries the same track without the album, then with the title minus a
+  remaster mark or a trailing "(feat. …)", carrying the same fields or fewer.
+  A narrower answer is used only when its length is within a second of the
+  track's. A redirect to any other host is refused.
 - **Which sources.** Every source is eligible, browser tabs included: with
   lyrics on, a YouTube tab's title goes to LRCLIB the same way a Spotify
   track's does.
@@ -204,7 +211,7 @@ turns it off again.
   after the new track has held for 0.4 s, so skipping through tracks does not
   send each one. A track that reports no length, title or artist is never
   looked up. Closing the island, switching to the Shelf or turning the setting
-  off sends nothing further.
+  off sends nothing further, including a repeat that was waiting.
 - **Bounds.** The request runs in a separate short-lived process
   (`nookisle-artwork-fetch --lyrics`) that refuses any answer over 256 KiB while
   reading it and never decompresses (`Accept-Encoding: identity`), with an 8 s
@@ -214,7 +221,9 @@ turns it off again.
   at 262,144 characters, 2000 lines and 512 characters a line.
 - **What is kept.** Answers live in memory only, in a cache of the last 16
   tracks (including "not found", so a missing track is not asked for again
-  until Try again). Nothing is written to disk, logged, or exposed through
+  during the session; turning lyrics off and on forgets it). An error, such as
+  a busy or unreachable LRCLIB, is never kept, so Try again asks the service
+  again. Nothing is written to disk, logged, or exposed through
   `status()` or IPC. Turning lyrics off aborts a request in flight and empties
   the cache; unloading the plugin forgets it too.
 

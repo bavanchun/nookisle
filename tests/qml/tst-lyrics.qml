@@ -90,7 +90,7 @@ TestCase {
                 var route = extractRoute(url);
                 if (route === "slow") return;
                 Qt.callLater(function () {
-                    respond(route);
+                    respond(route, String(url));
                 });
             }
 
@@ -104,9 +104,57 @@ TestCase {
                 return match ? match[1] : (currentRoute || "get");
             }
 
-            function respond(route) {
+            function param(url, name) {
+                var match = url.match(new RegExp("[?&]" + name + "=([^&]*)"));
+                return match ? decodeURIComponent(match[1]) : "";
+            }
+            function bodyWithDuration(seconds) {
+                var body = JSON.parse(JSON.stringify(test.bodies["/api/get"]));
+                body.duration = seconds;
+                return JSON.stringify(body);
+            }
+            function respond(route, url) {
                 var nth = requests.length;
-                if (route === "busy-once") {
+                var hasAlbum = param(url, "album_name") !== "";
+                var suffixed = param(url, "track_name").indexOf("Remaster") >= 0;
+                if (route === "album-strict") {
+                    if (hasAlbum)
+                        finished(404, "");
+                    else
+                        finished(200, JSON.stringify(test.bodies["/api/get"]));
+                } else if (route === "suffix-only") {
+                    if (hasAlbum || suffixed)
+                        finished(404, "");
+                    else
+                        finished(200, JSON.stringify(test.bodies["/api/get"]));
+                } else if (route === "plain-then-synced") {
+                    if (nth === 1)
+                        finished(404, "");
+                    else if (nth === 2)
+                        finished(200, JSON.stringify(test.bodies["/api/plain"]));
+                    else
+                        finished(200, JSON.stringify(test.bodies["/api/get"]));
+                } else if (route === "busy-then-404") {
+                    if (nth === 1)
+                        failed("busy");
+                    else
+                        finished(404, "");
+                } else if (route === "404-then-busy") {
+                    if (nth === 1)
+                        finished(404, "");
+                    else
+                        failed("busy");
+                } else if (route === "drift-answer") {
+                    if (nth === 1)
+                        finished(404, "");
+                    else
+                        finished(200, bodyWithDuration(202));
+                } else if (route === "edge-answer") {
+                    if (nth === 1)
+                        finished(404, "");
+                    else
+                        finished(200, bodyWithDuration(201));
+                } else if (route === "busy-once") {
                     if (nth === 1)
                         failed("busy");
                     else
@@ -285,6 +333,88 @@ TestCase {
         compare(limited.state, "error");
         compare(limited.code, "rate-limited");
         verify(!limited.cache);
+    }
+
+    function test_stripVersionSuffix() {
+        var stripped = [
+            ["Here Comes The Sun - Remastered 2009", "Here Comes The Sun"],
+            ["Hotel California - 2013 Remaster", "Hotel California"],
+            ["Wonderwall - Remastered", "Wonderwall"],
+            ["'39 - Remastered 2011", "'39"],
+            ["Get Lucky (feat. Pharrell Williams and Nile Rodgers)", "Get Lucky"],
+            ["STAY (with Justin Bieber)", "STAY"],
+            ["Song [ft. Someone]", "Song"],
+            ["Song (feat. Someone) - Remastered 2009", "Song"]
+        ];
+        for (var i = 0; i < stripped.length; ++i) {
+            compare(Lyrics.stripVersionSuffix(stripped[i][0]), stripped[i][1], stripped[i][0]);
+            compare(Lyrics.stripVersionSuffix(stripped[i][1]), stripped[i][1], "idempotent: " + stripped[i][0]);
+        }
+        var kept = ["Old Town Road - Remix", "Hotel California - Live On MTV, 1994", "Gangnam Style (강남스타일)",
+            "Life on Mars?", "Song - Acoustic", "Song (Sped Up)", "Song - Radio Edit", "Song (Instrumental)",
+            "Song - Demo", "Song (Karaoke Version)", "Song - Slowed", "Song (Deluxe Version)", "Plain"];
+        for (var j = 0; j < kept.length; ++j)
+            compare(Lyrics.stripVersionSuffix(kept[j]), kept[j], kept[j]);
+        compare(Lyrics.stripVersionSuffix("(feat. Only A Guest)"), "(feat. Only A Guest)", "an empty result keeps the original");
+        compare(Lyrics.stripVersionSuffix(""), "");
+        compare(Lyrics.stripVersionSuffix(null), "");
+    }
+    function test_stripVersionSuffixIsBounded() {
+        var long = new Array(4097).join("a") + " - Remastered";
+        var started = Date.now();
+        compare(Lyrics.stripVersionSuffix(long), long, "left unchanged above 200 characters");
+        var spaces = "x" + new Array(4096).join(" ") + "(feat. ";
+        compare(Lyrics.stripVersionSuffix(spaces), spaces);
+        var nested = new Array(2000).join("(feat. ") + "x";
+        compare(Lyrics.stripVersionSuffix(nested), nested);
+        var edge = new Array(171).join("b") + " - Remastered 2009";
+        compare(Lyrics.stripVersionSuffix(edge), new Array(171).join("b"), "a title within the limit is still stripped");
+        verify(Date.now() - started < 500, "adversarial titles return within a fixed time bound");
+    }
+    function test_requestPlan() {
+        var meta = Lyrics.trackMeta(track("Song - Remastered 2009"));
+        var plan = Lyrics.requestPlan(meta);
+        compare(plan.length, 3);
+        compare(plan[0], meta);
+        compare(plan[1].album, "", "the second attempt drops the album");
+        compare(plan[1].title, "Song - Remastered 2009");
+        compare(plan[2].title, "Song", "the third also strips the title");
+        compare(plan[2].album, "");
+        for (var i = 0; i < plan.length; ++i) {
+            verify(Object.keys(plan[i]).every(function (key) { return Object.keys(meta).indexOf(key) >= 0; }),
+                "no field beyond the original ones is ever sent");
+            compare(plan[i].artist, meta.artist);
+            compare(plan[i].duration, meta.duration);
+            verify(plan[i].album === meta.album || plan[i].album === "");
+            verify(plan[i].title === meta.title || plan[i].title === Lyrics.stripVersionSuffix(meta.title));
+        }
+        var plain = Lyrics.requestPlan(Lyrics.trackMeta(track("Plain Song")));
+        compare(plain.length, 2, "a title that does not change adds no third attempt");
+        var bare = track("Plain Song");
+        bare.presentation.album = "";
+        compare(Lyrics.requestPlan(Lyrics.trackMeta(bare)).length, 1, "nothing narrower to try without an album or suffix");
+        var bareSuffix = track("Song - Remastered");
+        bareSuffix.presentation.album = "";
+        var narrowed = Lyrics.requestPlan(Lyrics.trackMeta(bareSuffix));
+        compare(narrowed.length, 2);
+        compare(narrowed[1].title, "Song");
+        var urls = narrowed.map(function (entry) { return Lyrics.requestUrl("b", entry); });
+        compare(urls[0] === urls[1], false, "duplicates are removed");
+        compare(Lyrics.requestPlan(null).length, 0);
+    }
+    function test_interpretChecksAFallbackDuration() {
+        var answer = function (seconds) {
+            return JSON.stringify({ duration: seconds, syncedLyrics: "[00:01.00]Hi" });
+        };
+        compare(Lyrics.interpret(200, answer(200)).state, "ready", "no expectation: accepted as before");
+        compare(Lyrics.interpret(200, answer(200), 200).state, "ready");
+        compare(Lyrics.interpret(200, answer(201), 200).state, "ready", "one second off is the edge");
+        compare(Lyrics.interpret(200, answer(199.2), 200).state, "ready");
+        compare(Lyrics.interpret(200, answer(202), 200).state, "none", "two seconds off is another recording");
+        compare(Lyrics.interpret(200, answer(150), 200).state, "none");
+        compare(Lyrics.interpret(200, JSON.stringify({ syncedLyrics: "[00:01.00]Hi" }), 200).state, "none", "no duration cannot be checked");
+        compare(Lyrics.interpret(200, JSON.stringify({ duration: 202, instrumental: true }), 200).state, "none");
+        verify(Lyrics.interpret(200, answer(202), 200).cache);
     }
 
     // LyricsSource against the local fixture.
@@ -498,7 +628,7 @@ TestCase {
         var before = requestCount();
         source.retry();
         tryCompare(source, "lyricsState", "none", 3000);
-        compare(requestCount(), before + 1, "Try again really asks again");
+        compare(requestCount(), before + 2, "Try again really asks again, the walk included");
     }
 
     // A refusal (LRCLIB shedding load) is retried once, then reported as such.
@@ -602,5 +732,125 @@ TestCase {
         source.retry();
         tryCompare(source, "lyricsState", "ready", 3000);
         compare(source.errorCode, "");
+    }
+
+    // After a real miss the lookup tries narrower questions, each with the
+    // same or fewer fields, and stays inside four requests.
+    function test_albumFallbackFindsTheTrackAndIsCached() {
+        var before = requestCount();
+        var source = makeSource("album-strict");
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 2, "the album, then without it");
+        verify(source.fetcher.requests[0].indexOf("album_name=") > 0);
+        compare(source.fetcher.requests[1].indexOf("album_name="), -1);
+        compare(source.cache.length, 1);
+        compare(source.cache[0].key, Lyrics.cacheKey(Lyrics.trackMeta(track())), "cached under the original key");
+        source.wanted = false;
+        source.wanted = true;
+        compare(source.lyricsState, "ready");
+        wait(150);
+        compare(requestCount(), before + 2, "a reopen sends nothing");
+    }
+    function test_suffixFallbackFindsTheTrack() {
+        var before = requestCount();
+        var source = makeSource("suffix-only", track("Fixture Song - Remastered 2009"));
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 3, "the album, then without it, then the stripped title");
+        verify(source.fetcher.requests[2].indexOf("track_name=Fixture%20Song&") > 0);
+        compare(source.fetcher.requests[2].indexOf("album_name="), -1);
+    }
+    function test_aHitSendsExactlyOneRequest() {
+        var before = requestCount();
+        var source = makeSource("get", track("Fixture Song - Remastered 2009"));
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "ready", 3000);
+        wait(150);
+        compare(requestCount(), before + 1);
+    }
+    function test_plainAnswerKeepsLookingForSyncedLyrics() {
+        var before = requestCount();
+        var source = makeSource("plain-then-synced", track("Fixture Song - Remastered 2009"));
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 3);
+        compare(source.lines.length, 6);
+    }
+    function test_plainWithoutSyncedStaysPlain() {
+        var before = requestCount();
+        var source = makeSource("plain");
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "plain", 3000);
+        wait(150);
+        compare(requestCount(), before + 1, "a plain answer to the first question is final");
+    }
+    function test_aDriftingFallbackAnswerIsAMiss() {
+        var before = requestCount();
+        var source = makeSource("drift-answer");
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "none", 3000);
+        compare(requestCount(), before + 2);
+        compare(source.cache.length, 1, "the miss is cached");
+    }
+    function test_aFallbackAnswerOneSecondOffIsAccepted() {
+        var source = makeSource("edge-answer");
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "ready", 3000);
+    }
+    function test_missWalkIsNeverMoreThanFourRequests() {
+        var before = requestCount();
+        var source = makeSource("busy-then-404", track("Fixture Song - Remastered 2009"), { retryMs: 30 });
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "none", 3000);
+        compare(requestCount(), before + 4, "busy, then three misses");
+        compare(source.cache.length, 1);
+        wait(150);
+        compare(requestCount(), before + 4);
+    }
+    function test_aBusyRefusalAfterAMissEndsInErrorAndCachesNothing() {
+        var before = requestCount();
+        var source = makeSource("404-then-busy", track("Fixture Song - Remastered 2009"), { retryMs: 30 });
+        source.wanted = true;
+        tryCompare(source, "lyricsState", "error", 3000);
+        compare(source.errorCode, "busy");
+        compare(requestCount(), before + 3, "a miss, a refusal and its one retry");
+        compare(source.cache.length, 0, "a walk that ended in an error caches nothing");
+    }
+    function test_closingTheViewMidWalkSendsNoFurtherRequest() {
+        var before = requestCount();
+        var source = makeSource("album-strict");
+        source.wanted = true;
+        source.wanted = false;
+        wait(200);
+        compare(requestCount(), before + 1, "the answer in flight finishes, nothing follows");
+        compare(source.cache.length, 0, "a walk stopped before its last attempt caches nothing");
+        compare(source.active, null);
+        compare(source.lyricsState, "idle");
+    }
+    function test_turningLyricsOffMidWalkSendsNoFurtherRequest() {
+        var before = requestCount();
+        var source = makeSource("album-strict");
+        source.wanted = true;
+        source.lyricsEnabled = false;
+        wait(200);
+        compare(requestCount(), before + 1);
+        compare(source.cache.length, 0);
+        compare(source.lyricsState, "idle");
+    }
+    function test_aTrackChangeMidWalkNeverAppliesTheStaleAnswer() {
+        var before = requestCount();
+        var source = makeSource("album-strict");
+        source.wanted = true;
+        source.endpoint = track("Another Song");
+        wait(100);
+        compare(requestCount(), before + 1, "the old walk stopped after its first request");
+        compare(source.lyricsState, "loading");
+        tryCompare(source, "lyricsState", "ready", 3000);
+        compare(requestCount(), before + 3, "the new track walks on its own");
+        verify(source.fetcher.requests[1].indexOf("Another%20Song") > 0);
+        verify(source.fetcher.requests[2].indexOf("Another%20Song") > 0);
+        compare(source.cache.length, 1);
+        compare(source.cache[0].key, Lyrics.cacheKey(Lyrics.trackMeta(track("Another Song"))));
     }
 }
