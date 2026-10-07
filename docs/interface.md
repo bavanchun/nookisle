@@ -488,7 +488,9 @@ The player, after boring.notch's:
   line's place.
 - **Scrubber.** The position slider across the column, with the elapsed and
   total times under its ends in tabular figures. Without a source there is no
-  scrubber and no button row. Its track is 5px, springing (0.35, 0.7) to 9px while dragged, and its fill
+  scrubber and no button row. Its track is 5px, springing (0.35, 0.7) to 7px under the pointer
+  (`scrubHeightHover`) and 9px while dragged, the elapsed time turning to full
+  ink while it is dragged, and its fill
   follows `sliderColor`: the artwork colour (`albumArt`, the default for a new
   install), white, or the theme accent. The elapsed and total times stay neutral.
 - **Buttons** ([MusicToolbar.qml](../components/MusicToolbar.qml)). The

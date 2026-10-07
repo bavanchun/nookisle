@@ -19,9 +19,10 @@ Item {
     property bool gesturing: false
     property real preview: sample
     readonly property real displayValue: gesturing ? preview : sample
-    // The scrubber's track, after boring.notch's: scrubHeight at rest and
-    // scrubHeightActive while dragged, springing (0.35, 0.7) between them.
-    // Off, the track keeps its plain small height.
+    // The scrubber's track, after boring.notch's: scrubHeight at rest,
+    // scrubHeightHover under the pointer and scrubHeightActive while dragged,
+    // springing (0.35, 0.7) between them. Off, the track keeps its plain
+    // small height.
     property bool thickens: false
     // Above 0, a drag also sends its value every liveInterval ms while it
     // runs, not only on release (the volume popover writes as it moves).
@@ -47,7 +48,9 @@ Item {
     // centred vertically in the control's whole height.
     property real trackPadding: 6
     readonly property real restTrack: thickens ? tokens.scrubHeight : tokens.small
-    readonly property real trackTarget: thickens && gesturing ? tokens.scrubHeightActive : restTrack
+    readonly property bool hovered: slider.hovered
+    readonly property real trackTarget: !thickens ? restTrack
+        : gesturing ? tokens.scrubHeightActive : hovered && actionEnabled ? tokens.scrubHeightHover : restTrack
     readonly property real trackHeight: thickens ? trackSpring.value : tokens.small
     onTrackTargetChanged: trackSpring.moveTo(trackTarget, 0.35, 0.7, tokens.reducedMotion)
     SpringDriver {

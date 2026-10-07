@@ -692,7 +692,7 @@ Item {
                     objectName: "elapsedTime"
                     text: root.timeText(progress.displayValue)
                     textFormat: Text.PlainText
-                    color: root.tokens.secondary
+                    color: progress.gesturing ? root.tokens.text : root.tokens.secondary
                     font.family: root.tokens.fontFamily
                     renderType: root.tokens.textRenderType
                     font.pixelSize: root.tokens.captionSize

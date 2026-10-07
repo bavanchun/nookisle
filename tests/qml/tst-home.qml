@@ -1004,6 +1004,21 @@ TestCase {
         tryCompare(track, "height", design.scrubHeightActive, 1000);
         progress.cancelGesture();
     }
+    // The elapsed time turns to ink while the scrubber is dragged, and back.
+    function test_elapsedTimeTurnsToInkWhileScrubbing() {
+        var home = createTemporaryObject(homeComponent, test);
+        var progress = findChild(home, "progressControl");
+        var elapsed = findChild(home, "elapsedTime");
+        function near(a, b) {
+            return Math.abs(a.r - b.r) < 0.01 && Math.abs(a.g - b.g) < 0.01 && Math.abs(a.b - b.b) < 0.01;
+        }
+        verify(near(elapsed.color, design.secondary), "secondary at rest");
+        verify(!near(elapsed.color, design.text));
+        progress.beginGesture();
+        verify(near(elapsed.color, design.text), "ink while scrubbing");
+        progress.cancelGesture();
+        verify(near(elapsed.color, design.secondary), "secondary again after");
+    }
     function test_sliderColorSetting() {
         design.artColor = "#e36954";
         var home = createTemporaryObject(homeComponent, test);

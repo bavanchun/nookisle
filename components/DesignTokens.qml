@@ -342,6 +342,7 @@ QtObject {
     // The closed notch's cover while paused.
     readonly property real pausedWingOpacity: 0.6
     readonly property int scrubHeight: 5
+    readonly property int scrubHeightHover: 7
     readonly property int scrubHeightActive: 9
     // Marquee scroll speed in px/s, and its pause before each pass in ms.
     readonly property int marqueeSpeed: 30

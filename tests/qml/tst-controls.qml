@@ -298,4 +298,37 @@ TestCase {
         stage.enabled = false;
         verify(!control.capturedIntent, "a captured press outlived the stage going inert");
     }
+    // The scrubber thickens under the pointer, before a press: a bit on
+    // hover, fully while dragged. Under reduced motion it lands at once.
+    function test_scrubberThickensOnHoverAndDrag() {
+        var control = createTemporaryObject(sliderComponent, test, { thickens: true });
+        compare(control.trackTarget, design.scrubHeight);
+        compare(design.scrubHeightHover, 7);
+        mouseMove(control, 100, 16);
+        verify(control.hovered);
+        compare(control.trackTarget, design.scrubHeightHover);
+        compare(control.trackHeight, design.scrubHeightHover, "at once under reduced motion");
+        mousePress(control, 100, 16);
+        compare(control.trackTarget, design.scrubHeightActive);
+        compare(control.trackHeight, design.scrubHeightActive);
+        mouseRelease(control, 100, 16);
+        compare(control.trackTarget, design.scrubHeightHover, "back to the hover height while the pointer stays");
+        mouseMove(test, test.width - 2, test.height - 2);
+        compare(control.trackTarget, design.scrubHeight);
+        compare(control.trackHeight, design.scrubHeight);
+    }
+    function test_scrubberHoverSpringsWhenMotionIsOn() {
+        design.reducedMotion = false;
+        var control = createTemporaryObject(sliderComponent, test, { thickens: true });
+        mouseMove(control, 100, 16);
+        verify(control.trackHeight < design.scrubHeightHover, "it springs rather than jumps");
+        tryCompare(control, "trackHeight", design.scrubHeightHover, 1500, "and settles");
+        design.reducedMotion = true;
+    }
+    function test_plainSliderDoesNotThickenOnHover() {
+        var control = createTemporaryObject(sliderComponent, test);
+        mouseMove(control, 100, 16);
+        verify(control.hovered);
+        compare(control.trackHeight, design.small, "the volume slider keeps its track");
+    }
 }
