@@ -1,10 +1,40 @@
 # Nookisle
 
-Nookisle is a native music controller for Omarchy, modelled on [boring.notch](https://github.com/TheBoredTeam/boring.notch). On a top bar it becomes a black notch over the bar's centre: music with a lyric line, a file shelf, calendar, camera mirror and HUD.
+![Nookisle island opening and closing with music playback](https://github.com/user-attachments/assets/42af95c6-d19c-4927-b422-92560cdc38f9)
 
-*Note: Nookisle is a Linux desktop component for Omarchy and is entirely unrelated to macOS notch applications.*
+<video src="https://github.com/user-attachments/assets/68e311bd-019f-4316-b516-2257dfea5e57" controls muted></video>
 
-![Nookisle preview](preview.png)
+<p>
+  <img src="https://github.com/user-attachments/assets/417c6a6a-804b-4950-8e92-d2b0e18c4114" width="49%" alt="Closed notch showing cover, title and live spectrum">
+  <img src="https://github.com/user-attachments/assets/31fc357c-1c9b-433f-b8c0-df95ef44aeda" width="49%" alt="Home view with player, synced lyric line and calendar">
+</p>
+<p>
+  <img src="https://github.com/user-attachments/assets/e5f43b1b-e436-464b-a559-4471d39ff157" width="49%" alt="Lyrics view with three synced lines">
+  <img src="https://github.com/user-attachments/assets/15f27425-614c-48bf-b636-e62c38680f09" width="49%" alt="Shelf tab with the Share tile and the drop zone">
+</p>
+<p>
+  <img src="https://github.com/user-attachments/assets/e074bef3-235f-4680-9c23-92d459ee7bff" width="49%" alt="Volume HUD shown inside the closed notch">
+  <img src="https://github.com/user-attachments/assets/aae2dadb-ee0f-49a7-821d-155ed7591bc2" width="49%" alt="Microphone and camera privacy dots in the closed notch">
+</p>
+
+Media note: on-screen track names and cover art belong to their owners. The video is silent; lyric lines come from LRCLIB at runtime.
+
+Nookisle is a dynamic island for Omarchy: music controls and synced lyrics, a file shelf, calendar, camera mirror and volume/brightness HUD in a black notch at the centre of your top bar.
+
+## Why Nookisle
+
+| What you get | What backs it up |
+|---|---|
+| An island alongside your bar | A native Omarchy plugin; your bar stays in place. See [installation](docs/install.md). |
+| Spectrum from real audio | Local PipeWire monitor levels drive the bars; no audio leaves the capture process. See [privacy](docs/privacy.md#spectrum). |
+| Opt-in synced lyrics | LRCLIB lookups send title, first artist, album and rounded length; a normal lookup is one request, with at most four after a busy response and a real miss. See [the lyrics contract](docs/privacy.md#lyrics). |
+| Cover colour with a contrast guard | Colour stays on graphics, with contrast checks against the black notch. See [the interface](docs/interface.md). |
+| Reduced motion that stops loops | Reduced motion stops the live spectrum and idle animation loops. See [settings](docs/settings.md). |
+| Verifiable release binaries | GitHub build attestations and `SHA256SUMS`; see [build provenance](#build-provenance). |
+| Fast-forward updates | The protected distribution branch moves forward through the release workflow. See [updating](#updating). |
+| A local release gate | 64 CTest suites cover helper, lyrics, UI, lifecycle, packaging and browser contracts. See [development](https://github.com/bavanchun/nookisle/blob/v1.0.4/docs/development.md). |
+
+Updates fast-forward only. Every binary is attested.
 
 ## Install
 
@@ -124,7 +154,7 @@ Nookisle is a local controller. No audio, browsing history, or telemetry leave t
 ### System Access
 - **State read:** MPRIS media properties, Hyprland IPC window and workspace events, UPower battery status, PipeWire audio spectrum, `/proc/<pid>/fd` links of the user's own processes (to show camera activity dots while excluding system daemons), and Omarchy's recording marker in `/tmp`.
 - **System services:** `systemctl --user stop` is used only for the user's own reminder timers.
-- **Privacy gates:** The camera mirror activates only upon explicit user opening. CalDAV accounts connect only when configured. Online album artwork and synced lyrics (from LRCLIB) are strictly opt-in and disabled by default; lyrics requests run in a separate short-lived process (`nookisle-artwork-fetch --lyrics`) that refuses oversized responses (over 256 KiB) while reading and never decompresses.
+- **Privacy gates:** The camera mirror is off by default; enabling Mirror on Home keeps its feed running while that view is open. CalDAV accounts connect only when configured. Online album artwork and synced lyrics (from LRCLIB) are strictly opt-in and disabled by default; lyrics requests run in a separate short-lived process (`nookisle-artwork-fetch --lyrics`) that refuses oversized responses (over 256 KiB) while reading and never decompresses.
 - **Boundaries:** No elevated privileges, no system-level services, and no remote builds.
 
 ## Updating
@@ -170,5 +200,3 @@ See [SECURITY.md](SECURITY.md) for the security policy and vulnerability reporti
 ## License
 
 MIT License. See [LICENSE](LICENSE).
-
-Crediting [boring.notch](https://github.com/TheBoredTeam/boring.notch) as the design inspiration for the notch presentation (no code copied).

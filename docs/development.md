@@ -69,6 +69,9 @@ ctest --preset release -R "helper-*"
 # Run source contract verification
 python3 tests/source-contract.py
 
+# Run the isolated QML lifecycle gate
+bash tests/qml/run-lifecycle.sh
+
 # Run install plugin script test suite
 python3 tests/test-install-plugin.py
 
@@ -101,7 +104,7 @@ scripts/assemble-dist.sh stage out
 omarchy plugin validate out/
 
 # 4. Verify QML lifecycle against out/
-NOOKISLE_TEST_DIR=out tests/qml/run-lifecycle.sh
+NOOKISLE_TEST_DIR=out bash tests/qml/run-lifecycle.sh
 ```
 
 ---

@@ -16,6 +16,11 @@ remain evidence for the revisions actually sampled; they do not establish
 performance acceptance for this change. No new cohorts were run for it.
 The process sampler still measures the current always-island workloads.
 
+The camera Mirror tile (`showMirror`) is off by default for new installs. When
+enabled, it keeps its feed running while Home is open and costs about 6 to 8 CPU
+percentage points on the reference machine. The recorded performance cohorts
+use `showMirror` off.
+
 ## Historical comparison interpretation
 
 Use at least three alternating baseline/island pairs. Each run needs 30 seconds

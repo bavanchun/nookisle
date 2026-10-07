@@ -7,7 +7,7 @@
   "repository": "https://github.com/bavanchun/nookisle",
   "license": "MIT",
   "author": "bavanchun",
-  "description": "Notch-style island for the Omarchy bar: media controls with synced lyrics, a file shelf, calendar, camera mirror and volume/brightness HUD.",
+  "description": "Dynamic island for Omarchy: music, synced lyrics, files, calendar",
   "kinds": ["bar-widget", "panel", "service"],
   "keepLoaded": true,
   "entryPoints": {
