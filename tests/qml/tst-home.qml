@@ -741,6 +741,64 @@ TestCase {
     }
     // The player block holds still as lyrics load and arrive: the line keeps
     // its row for every lookup state, and the row clips a line dropping in.
+    // A track change hands the title and artist off together, on one wrapper.
+    function test_metadataHandsOffOnATrackChange() {
+        design.reducedMotion = false;
+        var home = createTemporaryObject(homeComponent, test);
+        var wrapper = findChild(home, "trackMetadata");
+        var title = findChild(home, "trackTitle"), artist = findChild(home, "trackArtist");
+        verify(wrapper);
+        compare(wrapper.opacity, 1);
+        facade.selectedEndpoint = endpoint({ trackToken: { id: "next" },
+            presentation: { title: "Next one", artists: ["Next artist"], hostApp: "Spotify" } });
+        tryVerify(function () { return wrapper.opacity < 1; }, 500, "the old metadata starts to fade");
+        compare(title.text, "Test track", "still the old title");
+        compare(artist.text, "Test artist", "and the old artist");
+        grabImage(home).save(Qt.resolvedUrl("../../build/ui-preview/home-metadata-handoff.png").toString().slice(7));
+        tryCompare(title, "text", "Next one", 500);
+        compare(artist.text, "Next artist", "they swap together");
+        tryCompare(wrapper, "opacity", 1, design.closedFadeOut + design.closedFadeIn + 200);
+    }
+    function test_metadataRestartsOnARapidSkip() {
+        design.reducedMotion = false;
+        var home = createTemporaryObject(homeComponent, test);
+        var wrapper = findChild(home, "trackMetadata");
+        var title = findChild(home, "trackTitle");
+        function skip(id, name) {
+            facade.selectedEndpoint = endpoint({ trackToken: { id: id },
+                presentation: { title: name, artists: ["Artist"], hostApp: "Spotify" } });
+        }
+        skip("a", "Skipped title");
+        tryVerify(function () { return wrapper.opacity < 0.9; }, 500);
+        var seen = [title.text];
+        var before = wrapper.opacity;
+        skip("b", "Final title");
+        verify(wrapper.opacity <= before + 0.001, "it restarts from the current opacity");
+        for (var i = 0; i < 40; ++i) {
+            wait(10);
+            if (seen.indexOf(title.text) < 0)
+                seen.push(title.text);
+        }
+        compare(seen, ["Test track", "Final title"], "never the skipped title");
+        compare(wrapper.opacity, 1);
+    }
+    function test_metadataStaysPutWhenOnlyThePositionMoves() {
+        design.reducedMotion = false;
+        var home = createTemporaryObject(homeComponent, test);
+        var wrapper = findChild(home, "trackMetadata");
+        facade.selectedEndpoint = endpoint({ positionSeconds: 150 });
+        wait(120);
+        compare(wrapper.opacity, 1);
+        compare(findChild(home, "trackTitle").text, "Test track");
+    }
+    function test_metadataSwapsAtOnceUnderReducedMotion() {
+        var home = createTemporaryObject(homeComponent, test);
+        facade.selectedEndpoint = endpoint({ trackToken: { id: "next" },
+            presentation: { title: "Next one", artists: ["Next artist"], hostApp: "Spotify" } });
+        compare(findChild(home, "trackTitle").text, "Next one");
+        compare(findChild(home, "trackArtist").text, "Next artist");
+        compare(findChild(home, "trackMetadata").opacity, 1);
+    }
     function test_playerBlockHoldsStillAsLyricsArrive() {
         facade.lyrics = true;
         lyricsFixture.lyricsState = "loading";

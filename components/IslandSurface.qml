@@ -847,6 +847,10 @@ Item {
             contentIn.restart();
         }
     }
+    // The wings hold the content the model asks for: a title handoff waits
+    // for this, since the content's own fade covers a swap.
+    readonly property bool closedContentSettled: contentFade >= 1 && modelLeft === shownLeft
+        && modelRight === shownRight && modelCentre === shownCentre && modelMinimal === shownMinimal
     onModelLeftChanged: updateClosedContent()
     onModelRightChanged: updateClosedContent()
     onModelCentreChanged: updateClosedContent()
@@ -1218,6 +1222,7 @@ Item {
                 leftContent: root.shownLeft
                 rightContent: root.shownRight
                 centreContent: root.shownCentre
+                handoffAllowed: root.closedContentSettled
                 minimalContent: root.shownMinimal
                 activities: activityModel
                 privacy: root.privacy

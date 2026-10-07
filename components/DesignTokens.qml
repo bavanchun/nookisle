@@ -306,6 +306,8 @@ QtObject {
     // springs, then the new fades in.
     readonly property int closedFadeOut: reducedMotion ? 0 : 90
     readonly property int closedFadeIn: reducedMotion ? 0 : 130
+    // A new track's title lifts out by this many px and settles in from below it.
+    readonly property real titleHandoffShift: 4
     readonly property int closedSpectrumWidth: spectrumBands * spectrumBarWidth + (spectrumBands - 1) * closedSpectrumGap
     // Closed-notch activities: the minimal glyph a second activity shrinks
     // to, how much the notch widens for it where the wings are narrow, and

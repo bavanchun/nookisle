@@ -2736,6 +2736,95 @@ TestCase {
         tryVerify(function () { return !findChild(surface, "centreSlot").visible; }, 1000,
             "a camera cutout keeps the centre empty after the content fades");
     }
+    function skipTo(id, title) {
+        var track = endpoint();
+        track.trackToken = { id: id };
+        track.presentation.title = title;
+        facade.selectedEndpoint = track;
+        facade.endpoints = [track];
+    }
+    // A track change hands the title off: the old one lifts out over
+    // closedFadeOut, the new one settles in over closedFadeIn, and the text
+    // never shows an intermediate title.
+    function test_closedTitleHandsOffOnATrackChange() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible && surface.closedContentSettled; }, 2000);
+        compare(title.text, "Test track");
+        skipTo("next", "Next one");
+        tryVerify(function () { return title.opacity < 1; }, 500, "the old title starts to fade");
+        compare(title.text, "Test track", "and is still the old title");
+        grabImage(surface).save(Qt.resolvedUrl("../../build/ui-preview/island-title-handoff.png").toString().slice(7));
+        tryCompare(title, "text", "Next one", 500);
+        tryCompare(title, "opacity", 1, design.closedFadeOut + design.closedFadeIn + 200);
+        compare(findChild(surface, "closedTitleMarquee").text, "Next one", "the marquee measures the new title");
+    }
+    // While the wings' own content fade is running, it wins: the title
+    // swaps at once rather than fading twice.
+    function test_closedTitleYieldsToTheContentFade() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible && surface.closedContentSettled; }, 2000);
+        surface.contentFade = 0.5;
+        verify(!surface.closedContentSettled);
+        skipTo("next", "Next one");
+        compare(title.text, "Next one");
+        compare(title.opacity, 1);
+        surface.contentFade = 1;
+    }
+    function test_closedTitleStaysPutWhenOnlyThePositionMoves() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible && surface.closedContentSettled; }, 2000);
+        var same = endpoint();
+        same.positionSeconds = 120;
+        facade.selectedEndpoint = same;
+        wait(120);
+        compare(title.opacity, 1);
+        compare(title.text, "Test track");
+    }
+    function test_closedTitleFollowsMetadataThatArrivesInParts() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible && surface.closedContentSettled; }, 2000);
+        var part = endpoint();
+        part.presentation.title = "Retitled";
+        facade.selectedEndpoint = part;
+        compare(title.text, "Retitled", "no token change, no second animation");
+        compare(title.opacity, 1);
+    }
+    function test_closedTitleSwapsAtOnceUnderReducedMotion() {
+        design.reducedMotion = true;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible; }, 2000);
+        skipTo("next", "Next one");
+        compare(title.text, "Next one");
+        compare(title.opacity, 1);
+    }
+    function test_closedTitleRestartsFromTheCurrentOpacityOnARapidSkip() {
+        design.reducedMotion = false;
+        var surface = createTemporaryObject(livePillComponent, test);
+        var title = findChild(surface, "closedTitle");
+        tryVerify(function () { return title.visible && surface.closedContentSettled; }, 2000);
+        skipTo("a", "Skipped title");
+        tryVerify(function () { return title.opacity < 0.9; }, 500);
+        var seen = [title.text];
+        var before = title.opacity;
+        skipTo("b", "Final title");
+        verify(title.opacity <= before + 0.001, "it restarts from where it was, not from 1");
+        for (var i = 0; i < 40; ++i) {
+            wait(10);
+            if (seen.indexOf(title.text) < 0)
+                seen.push(title.text);
+        }
+        compare(seen, ["Test track", "Final title"], "no flicker through the skipped title");
+        compare(title.opacity, 1);
+    }
     // The closed title keeps its place and width when the bars give way to
     // the narrower pause glyph: the right wing's slot is as wide in both.
     function test_closedTitleHoldsItsPlaceOnPause() {

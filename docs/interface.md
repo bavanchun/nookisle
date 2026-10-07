@@ -298,6 +298,13 @@ side of the idle body. Only a screen with a camera cutout needs that body
 empty, so it stays empty only with `hardwareNotch` on (off by default).
 Otherwise the live notch shows the track title in the body's centre, between
 the cover and the bars (8px from each), in the caption size and centred.
+A track change (the endpoint's `trackToken`; a position, volume or art update
+does not count) hands the title off: the old one lifts out 4px and fades over
+`closedFadeOut` (90ms), the text swaps, and the new one settles in from 4px
+below over `closedFadeIn` (130ms). The swap is at once under reduced motion,
+with the window hidden, and while the wings' own content fade runs; a rapid
+second skip restarts from the current opacity, and metadata that arrives in
+parts without a token change lands without a second animation.
 After a track change, while playing, a title too long to fit scrolls through
 exactly one [Marquee](../components/Marquee.qml) pass (the 3s pause, then
 the scroll) and then rests elided, so the closed notch never loops a
@@ -448,7 +455,9 @@ The player, after boring.notch's:
   choosing a source) returns focus to the control that opened it, or to the
   player's controls if that control is gone.
 - **Title and artist.** The title in bold ink, the artist in the secondary
-  ink; neither takes the artwork colour. Both scroll when they
+  ink; neither takes the artwork colour. A track change hands both off
+  together on one wrapper, with the closed notch's timing (out 90ms, swap,
+  in 130ms, 4px of lift), and at once under reduced motion. Both scroll when they
   do not fit ([Marquee.qml](../components/Marquee.qml)): two copies 20px apart
   move left at 30px/s after a 3s pause, only while visible and overflowing,
   and never under reduced motion. A scrolling line fades out over 12px at
